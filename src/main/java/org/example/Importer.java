@@ -18,11 +18,16 @@ public class Importer {
     public static void main(String[] args) {
         String url = "jdbc:postgresql://localhost:5432/database_project";
         String user = "postgres";
-        String password = "xxx";
-        String schema = "test";
+        String password = "XXX";
+        String schema = "project";
         String recipe_filepath = "src/main/resources/recipes.csv";
         String reviews_filepath = "src/main/resources/reviews.csv";
         String user_filepath = "src/main/resources/user.csv";
+        //请先完善以上信息
+
+
+        TableCreator tableCreator = new TableCreator(url,user,password,schema);
+        tableCreator.createTable();
         boolean del = true;
         Importer importer = new Importer(url,user,password,schema,del,recipe_filepath,reviews_filepath,user_filepath);
         long start = System.currentTimeMillis();
