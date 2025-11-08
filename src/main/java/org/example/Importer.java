@@ -18,13 +18,12 @@ public class Importer {
     public static void main(String[] args) {
         String url = "jdbc:postgresql://localhost:5432/sustc_db";
         String user = "postgres";
-        String password = "xxxxxx";
+        String password = "676767";
         String schema = "public";
         String recipe_filepath = "src/main/resources/recipes.csv";
         String reviews_filepath = "src/main/resources/reviews.csv";
         String user_filepath = "src/main/resources/user.csv";
         //请先完善以上信息
-
 
         TableCreator tableCreator = new TableCreator(url,user,password,schema);
         tableCreator.createTable();
@@ -179,13 +178,11 @@ public class Importer {
         }
     }
 
-
-
     public void copyToRecipe() {
         String table = schema + ".recipe";
         String filepath = recipe_filepath;
 
-        String value_list = "recipe_id,author_id,dish_name,date_published,cook_time,prep_time,total_time," +
+        String value_list = "recipe_id,author_id,dish_name,date_published,cook_time,prep_time," +
                 "description,aggr_rating,review_cnt,yield,servings,calories,fat,saturated_fat," +
                 "cholesterol,sodium,carbohydrate,fiber,sugar,protein";
         CSVReader csvReader = null;
@@ -218,7 +215,6 @@ public class Importer {
                             .append("|").append(fields[7])  // date_published
                             .append("|").append(fields[4].isEmpty() ? "PT0S" : fields[4])  // cook_time
                             .append("|").append(fields[5].isEmpty() ? "PT0S" : fields[5])  // prep_time
-                            .append("|").append(fields[6].isEmpty() ? "PT0S" : fields[6])  // total_time
                             .append("|").append(fields[8])  // description
                             .append("|").append(fields[12].isEmpty() ? 0.0 : fields[12])  // aggr_rating
                             .append("|").append(fields[13].isEmpty() ? 0 : Math.round(parseDouble(fields[13])))  // review_cnt
@@ -268,7 +264,6 @@ public class Importer {
             }
         }
     }
-
 
     public void copyToFavors_recipe(){
         String table = schema + ".favors_recipe";
@@ -1026,8 +1021,6 @@ public class Importer {
             System.out.println(e);
         }
     }
-
-
 
     public String cutString(String s) {
         if (s == null || s.length() < 2) {

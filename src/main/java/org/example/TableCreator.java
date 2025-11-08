@@ -29,7 +29,6 @@ public class TableCreator {
             "                        date_published  DATE,\n" +
             "                        cook_time       INTERVAL,\n" +
             "                        prep_time       INTERVAL,\n" +
-            "                        total_time      INTERVAL,\n" +
             "                        description     TEXT,\n" +
             "                        aggr_rating     DECIMAL(3,2),\n" +
             "                        review_cnt      INT,\n" +

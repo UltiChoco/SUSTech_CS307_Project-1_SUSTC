@@ -24,7 +24,6 @@ CREATE TABLE recipe (
                         date_published  DATE,
                         cook_time       INTERVAL,
                         prep_time       INTERVAL,
-                        total_time      INTERVAL,  -- 派生，cook_time+prep_time
                         description     TEXT,
                         aggr_rating     DECIMAL(3,2), --派生
                         review_cnt      INT,       -- 派生
