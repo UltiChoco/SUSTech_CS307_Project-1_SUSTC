@@ -7,7 +7,7 @@ import java.sql.SQLException;
 public class TableCreator {
     private Connection connection;
     private String schema;
-    private String sql = "CREATE TABLE users (\n" +
+    private String sql = "CREATE TABLE IF NOT EXISTS users (\n" +
             "                       author_id      SERIAL PRIMARY KEY,\n" +
             "                       author_name    VARCHAR(100) NOT NULL,\n" +
             "                       gender         VARCHAR(10)  CHECK (gender IN ('Male','Female')),\n" +
@@ -16,13 +16,13 @@ public class TableCreator {
             "                       follower_cnt   INT\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE follows (\n" +
+            "CREATE TABLE IF NOT EXISTS follows (\n" +
             "                         blogger_id  INT REFERENCES users(author_id),\n" +
             "                         follower_id INT REFERENCES users(author_id),\n" +
             "                         PRIMARY KEY (blogger_id, follower_id)\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE recipe (\n" +
+            "CREATE TABLE IF NOT EXISTS recipe (\n" +
             "                        recipe_id       SERIAL PRIMARY KEY,\n" +
             "                        author_id       INT REFERENCES users(author_id),\n" +
             "                        dish_name       VARCHAR(150) NOT NULL,\n" +
@@ -46,13 +46,13 @@ public class TableCreator {
             "                        protein         DECIMAL(8,2)\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE favors_recipe (\n" +
+            "CREATE TABLE IF NOT EXISTS favors_recipe (\n" +
             "                               author_id INT REFERENCES users(author_id),\n" +
             "                               recipe_id INT REFERENCES recipe(recipe_id),\n" +
             "                               PRIMARY KEY (author_id, recipe_id)\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE review (\n" +
+            "CREATE TABLE IF NOT EXISTS review (\n" +
             "                        review_id     SERIAL PRIMARY KEY,\n" +
             "                        recipe_id     INT REFERENCES recipe(recipe_id),\n" +
             "                        author_id     INT REFERENCES users(author_id),\n" +
@@ -62,47 +62,47 @@ public class TableCreator {
             "                        date_modify   DATE\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE likes_review (\n" +
+            "CREATE TABLE IF NOT EXISTS likes_review (\n" +
             "                              author_id INT REFERENCES users(author_id),\n" +
             "                              review_id INT REFERENCES review(review_id),\n" +
             "                              PRIMARY KEY (author_id, review_id)\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE keyword (\n" +
+            "CREATE TABLE IF NOT EXISTS keyword (\n" +
             "                         keyword_id   SERIAL PRIMARY KEY,\n" +
             "                         keyword_name VARCHAR(100) UNIQUE NOT NULL\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE ingredient (\n" +
+            "CREATE TABLE IF NOT EXISTS ingredient (\n" +
             "                            ingredient_id   SERIAL PRIMARY KEY,\n" +
             "                            ingredient_name VARCHAR(100) UNIQUE NOT NULL\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE instruction (\n" +
+            "CREATE TABLE IF NOT EXISTS instruction (\n" +
             "                             recipe_id        INT REFERENCES recipe(recipe_id),\n" +
             "                             step_no          INT,\n" +
             "                             instruction_text TEXT,\n" +
             "                             PRIMARY KEY (recipe_id, step_no)\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE has_keyword (\n" +
+            "CREATE TABLE IF NOT EXISTS has_keyword (\n" +
             "                             recipe_id  INT REFERENCES recipe(recipe_id),\n" +
             "                             keyword_id INT REFERENCES keyword(keyword_id),\n" +
             "                             PRIMARY KEY (recipe_id, keyword_id)\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE has_ingredient (\n" +
+            "CREATE TABLE IF NOT EXISTS has_ingredient (\n" +
             "                                recipe_id    INT REFERENCES recipe(recipe_id),\n" +
             "                                ingredient_id INT REFERENCES ingredient(ingredient_id),\n" +
             "                                PRIMARY KEY (recipe_id, ingredient_id)\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE category (\n" +
+            "CREATE TABLE IF NOT EXISTS category (\n" +
             "                          category_id   SERIAL PRIMARY KEY,\n" +
             "                          category_name VARCHAR(100) UNIQUE NOT NULL\n" +
             ");\n" +
             "\n" +
-            "CREATE TABLE has_category (\n" +
+            "CREATE TABLE IF NOT EXISTS has_category (\n" +
             "                              recipe_id   INT REFERENCES recipe(recipe_id),\n" +
             "                              category_id INT REFERENCES category(category_id),\n" +
             "                              PRIMARY KEY (recipe_id, category_id)\n" +

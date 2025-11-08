@@ -16,10 +16,10 @@ import static java.lang.Double.parseDouble;
 
 public class Importer {
     public static void main(String[] args) {
-        String url = "jdbc:postgresql://localhost:5432/database_project";
+        String url = "jdbc:postgresql://localhost:5432/sustc_db";
         String user = "postgres";
-        String password = "XXX";
-        String schema = "project";
+        String password = "xxxxxx";
+        String schema = "public";
         String recipe_filepath = "src/main/resources/recipes.csv";
         String reviews_filepath = "src/main/resources/reviews.csv";
         String user_filepath = "src/main/resources/user.csv";
@@ -104,6 +104,17 @@ public class Importer {
             System.out.println("committing...");
             copy.copyTo(table, value_list, csvBuilder,"|");
             System.out.println("finish");
+
+            // 同步序列，让自增ID与最大author_id对齐
+            String seqUpdate = "SELECT setval(pg_get_serial_sequence('" + table + "', 'author_id'), "
+                    + "(SELECT MAX(author_id) FROM " + table + "));";
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute(seqUpdate);
+                connection.commit();
+            } catch (SQLException e) {
+                System.err.println("Failed to update sequence for " + table);
+                e.printStackTrace();
+            }
 
         } catch (SQLException | IOException | CsvValidationException e) {
             throw new RuntimeException(e);
@@ -228,6 +239,18 @@ public class Importer {
             System.out.println("committing...");
             copy.copyTo(table, value_list, csvBuilder, "|");
             System.out.println("finish");
+
+            //同步序列，确保 recipe_id 自增与最大 id 对齐
+            String seqUpdate = "SELECT setval(pg_get_serial_sequence('" + table + "', 'recipe_id'), "
+                    + "(SELECT MAX(recipe_id) FROM " + table + "));";
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute(seqUpdate);
+                connection.commit();
+            } catch (SQLException e) {
+                System.err.println("Failed to update sequence for " + table);
+                e.printStackTrace();
+            }
+
         } catch (SQLException | IOException | CsvValidationException e) {
             try {
                 connection.rollback();
@@ -350,6 +373,17 @@ public class Importer {
             System.out.println("committing...");
             copy.copyTo(table, value_list, csvBuilder, "|");
             System.out.println("finish");
+
+            // 同步序列，确保 review_id 自增与最大 id 对齐
+            String seqUpdate = "SELECT setval(pg_get_serial_sequence('" + table + "', 'review_id'), "
+                    + "(SELECT MAX(review_id) FROM " + table + "));";
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute(seqUpdate);
+                connection.commit();
+            } catch (SQLException e) {
+                System.err.println("Failed to update sequence for " + table);
+                e.printStackTrace();
+            }
 
         } catch (SQLException | IOException | CsvValidationException e) {
             try {
