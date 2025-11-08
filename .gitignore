@@ -1,0 +1,70 @@
+# =========================
+# Java build / compiled files
+# =========================
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+*.iml
+*.log
+hs_err_pid*
+
+# =========================
+# IntelliJ IDEA project files
+# =========================
+.idea/
+*.iws
+*.ipr
+*.iml
+
+# =========================
+# VSCode / JetBrains caches
+# =========================
+.vscode/
+.settings/
+.project
+.classpath
+
+# =========================
+# OS / temporary files
+# =========================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+*.bak
+*.old
+
+# =========================
+# Project specific (SUSTech CS307)
+# =========================
+# 原始数据文件（不推送）
+src/main/resources/
+src/main/clean_data/
+*.csv
+*.xlsx
+*.ods
+
+# 数据库导出、备份文件
+*.sql~
+*.dump
+*.backup
+
+# 临时输出、测试文件
+temp/
+logs/
+test_output/
+
+# ER 图、临时图片（如果只想留 README 可选）
+# ER_diagram.png
+
+# =========================
+# Environment or local configs
+# =========================
+*.env
+*.properties
+*.config
