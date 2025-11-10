@@ -30,6 +30,9 @@ recipe中的yield和sodium都存在数据范围过小的问题，在运行代码
   - 各类`copyToXXX()`方法：对应不同数据表的导入逻辑（如`copyToUsers()`、`copyToRecipe()`等）
   - `processCSV()`：预处理CSV文件（示例中未完全展示实现）
 
+### 4. `ConcurrentQuery_Baseline`类
+- **功能**：高并发查询的基线。
+
 ## 使用步骤
 
 ### 1. 环境准备
