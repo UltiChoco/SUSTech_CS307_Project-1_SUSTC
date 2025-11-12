@@ -19,7 +19,7 @@ public class Importer {
         JsonParamReader jsonParamReader = new JsonParamReader("param.json");
         String url = jsonParamReader.getString("url").orElse("jdbc:postgresql://localhost:5432/database_project");
         String user = jsonParamReader.getString("user").orElse("postgres");
-        String password = jsonParamReader.getString("password").orElse("Dr141592");
+        String password = jsonParamReader.getString("password").orElse("XXXX");
         String schema = jsonParamReader.getString("schema").orElse("project_unlogged");
         String recipe_filepath = jsonParamReader.getString("recipe_filepath").orElse("src/main/resources/recipes.csv");
         String reviews_filepath = jsonParamReader.getString("review_filepath").orElse("src/main/resources/reviews.csv");
