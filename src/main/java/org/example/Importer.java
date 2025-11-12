@@ -106,6 +106,16 @@ public class Importer {
             System.out.println("committing...");
             copy.copyTo(table, value_list, csvBuilder,"|");
             System.out.println("finish");
+            // 同步序列，让自增ID与最大author_id对齐
+            String seqUpdate = "SELECT setval(pg_get_serial_sequence('" + table + "', 'author_id'), "
+                    + "(SELECT MAX(author_id) FROM " + table + "));";
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute(seqUpdate);
+                connection.commit();
+            } catch (SQLException e) {
+                System.err.println("Failed to update sequence for " + table);
+                e.printStackTrace();
+            }
 
         } catch (SQLException | IOException | CsvValidationException e) {
             throw new RuntimeException(e);
@@ -176,7 +186,7 @@ public class Importer {
         String table = schema + ".recipe";
         String filepath = recipe_filepath;
 
-        String value_list = "recipe_id,author_id,dish_name,date_published,cook_time,prep_time,total_time," +
+        String value_list = "recipe_id,author_id,dish_name,date_published,cook_time,prep_time," +
                 "description,aggr_rating,review_cnt,yield,servings,calories,fat,saturated_fat," +
                 "cholesterol,sodium,carbohydrate,fiber,sugar,protein";
         CSVReader csvReader = null;
@@ -209,7 +219,6 @@ public class Importer {
                             .append("|").append(fields[7])  // date_published
                             .append("|").append(fields[4].isEmpty() ? "PT0S" : fields[4])  // cook_time
                             .append("|").append(fields[5].isEmpty() ? "PT0S" : fields[5])  // prep_time
-                            .append("|").append(fields[6].isEmpty() ? "PT0S" : fields[6])  // total_time
                             .append("|").append(fields[8])  // description
                             .append("|").append(fields[12].isEmpty() ? 0.0 : fields[12])  // aggr_rating
                             .append("|").append(fields[13].isEmpty() ? 0 : Math.round(parseDouble(fields[13])))  // review_cnt
@@ -230,6 +239,16 @@ public class Importer {
             System.out.println("committing...");
             copy.copyTo(table, value_list, csvBuilder, "|");
             System.out.println("finish");
+            //同步序列，确保 recipe_id 自增与最大 id 对齐
+            String seqUpdate = "SELECT setval(pg_get_serial_sequence('" + table + "', 'recipe_id'), "
+                    + "(SELECT MAX(recipe_id) FROM " + table + "));";
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute(seqUpdate);
+                connection.commit();
+            } catch (SQLException e) {
+                System.err.println("Failed to update sequence for " + table);
+                e.printStackTrace();
+            }
         } catch (SQLException | IOException | CsvValidationException e) {
             try {
                 connection.rollback();
@@ -352,6 +371,16 @@ public class Importer {
             System.out.println("committing...");
             copy.copyTo(table, value_list, csvBuilder, "|");
             System.out.println("finish");
+            // 同步序列，确保 review_id 自增与最大 id 对齐
+            String seqUpdate = "SELECT setval(pg_get_serial_sequence('" + table + "', 'review_id'), "
+                    + "(SELECT MAX(review_id) FROM " + table + "));";
+            try (Statement stmt = connection.createStatement()) {
+                stmt.execute(seqUpdate);
+                connection.commit();
+            } catch (SQLException e) {
+                System.err.println("Failed to update sequence for " + table);
+                e.printStackTrace();
+            }
 
         } catch (SQLException | IOException | CsvValidationException e) {
             try {
