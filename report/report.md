@@ -11,9 +11,10 @@
 
 
 ## 2. 项目背景
-- #### 项目介绍： 
+- ### 项目介绍： 
 根据课程提供的SUSTC食谱数据集设计标准数据库管理方式。完成数据库设计、数据快速导入、比较DBMS和文件I/O的性能。
-- **原始文件**：`recipes.csv`, `user.csv`, `reviews.csv`
+- ### 原始文件：
+  `recipes.csv`, `user.csv`, `reviews.csv`
 
 
 ## 3. 任务一： E-R图绘制
@@ -146,109 +147,111 @@ https://online.visual-paradigm.com
   - `recipe_id` → `recipe(recipe_id)`  
   - `category_id` → `category(category_id)`  
   
+
 ## 5. 任务三：数据导入
 
-### 导入流程概述
-本次项目的数据导入使用 JDBC 连接数据库，并通过 PostgreSQL 的 `COPY` 方法实现高效的数据导入。整个导入流程包括数据预处理、CSV 文件构建以及数据导入三个主要阶段。数据预处理阶段对原始的 `recipes.csv` 和 `reviews.csv` 文件进行格式整理和非法字符替换，确保数据的合法性和一致性。随后，通过 OpenCSV 库解析 CSV 文件内容，并根据数据库表结构构建对应的 CSV 文件。最后，使用 PostgreSQL 的 `COPY` 方法将数据批量导入数据库。总数据量约为 2200 万行，全过程平均导入时间为 235 秒。
+- ### 导入流程概述
+  本次项目的数据导入使用 JDBC 连接数据库，并通过 PostgreSQL 的 `COPY` 方法实现高效的数据导入。整个导入流程包括数据预处理、CSV 文件构建以及数据导入三个主要阶段。数据预处理阶段对原始的 `recipes.csv` 和 `reviews.csv` 文件进行格式整理和非法字符替换，确保数据的合法性和一致性。随后，通过 OpenCSV 库解析 CSV 文件内容，并根据数据库表结构构建对应的 CSV 文件。最后，使用 PostgreSQL 的 `COPY` 方法将数据批量导入数据库。总数据量约为 2200 万行，全过程平均导入时间为 235 秒。
 
-### 导入代码结构
-导入代码主要由以下几部分组成：
-- **工具类**
-  - **ConsoleProgressBar.java**：进度条类，用于在终端显示导入进度，实现导入流程的可视化。
-  - **JsonParamReader.java**：JSON 参数读取类，用于从配置文件中读取数据库连接参数和文件路径，避免硬编码。
-- **核心导入类**
-  - **Copy.java**：封装 PostgreSQL 的 `CopyManager`，用于实现预构建 CSV 文件的批量导入。
-  - **TableCreator.java**：用于创建数据库表结构。
-  - **Importer.java**：包含主方法，实现数据预处理、表结构构建、CSV 数据构建以及数据导入的核心逻辑。
+- ### 导入代码结构
+  导入代码主要由以下几部分组成：
+  - **工具类**
+    - **ConsoleProgressBar.java**：进度条类，用于在终端显示导入进度，实现导入流程的可视化。
+    - **JsonParamReader.java**：JSON 参数读取类，用于从配置文件中读取数据库连接参数和文件路径，避免硬编码。
+  - **核心导入类**
+    - **Copy.java**：封装 PostgreSQL 的 `CopyManager`，用于实现预构建 CSV 文件的批量导入。
+    - **TableCreator.java**：用于创建数据库表结构。
+    - **Importer.java**：包含主方法，实现数据预处理、表结构构建、CSV 数据构建以及数据导入的核心逻辑。
 
-### 数据导入具体流程
-数据导入流程分为以下几个步骤：
+- ### 数据导入具体流程
+  数据导入流程分为以下几个步骤：
 
-#### 数据预处理
-使用 Java 的 `BufferedReader` 和 `BufferedWriter` 对原始的 `recipes.csv` 和 `reviews.csv` 文件进行逐行读取和处理。处理过程包括：
-- 合并因换行符导致的多行数据为单行。
-- 替换非法字符（如换行符、引号等），确保数据格式符合 CSV 标准。
+  - #### 数据预处理
+    使用 Java 的 `BufferedReader` 和 `BufferedWriter` 对原始的 `recipes.csv` 和 `reviews.csv` 文件进行逐行读取和处理。处理过程包括：
+    - 合并因换行符导致的多行数据为单行。
+    - 替换非法字符（如换行符、引号等），确保数据格式符合 CSV 标准。
 预处理后的数据重新写入文件，确保后续导入的顺利进行。
 
-#### CSV 文件构建
-使用 OpenCSV 库解析预处理后的 CSV 文件，并根据数据库表结构构建对应的 CSV 文件。具体流程如下：
+  - #### CSV 文件构建
+    使用 OpenCSV 库解析预处理后的 CSV 文件，并根据数据库表结构构建对应的 CSV 文件。具体流程如下：
 
-1. **`users` 表**
-   - 从 `user.csv` 文件中读取用户信息。
-   - 构建包含 `author_id`, `author_name`, `gender`, `age`, `following_cnt`, `follower_cnt` 的 CSV 文件。
-   - 使用 `COPY` 方法将数据导入数据库。
+    1. **`users` 表**
+       - 从 `user.csv` 文件中读取用户信息。
+       - 构建包含 `author_id`, `author_name`, `gender`, `age`, `following_cnt`, `follower_cnt` 的 CSV 文件。
+       - 使用 `COPY` 方法将数据导入数据库。
 
-2. **`follows` 表**
-   - 从 `user.csv` 文件中解析用户关注关系。
-   - 构建包含 `blogger_id` 和 `follower_id` 的 CSV 文件。
-   - 使用 `COPY` 方法将数据导入数据库。
+    2. **`follows` 表**
+       - 从 `user.csv` 文件中解析用户关注关系。
+       - 构建包含 `blogger_id` 和 `follower_id` 的 CSV 文件。
+       - 使用 `COPY` 方法将数据导入数据库。
 
-3. **`recipe` 表**
-   - 从 `recipes.csv` 文件中读取食谱信息。
-   - 构建包含 `recipe_id`, `author_id`, `dish_name`, `date_published`, `cook_time`, `prep_time`, `total_time`, `description`, `aggr_rating`, `review_cnt`, `yield`, `servings`, `calories`, `fat`, `saturated_fat`, `cholesterol`, `sodium`, `carbohydrate`, `fiber`, `sugar`, `protein` 的 CSV 文件。
-   - 使用 `COPY` 方法将数据导入数据库。
+    3. **`recipe` 表**
+       - 从 `recipes.csv` 文件中读取食谱信息。
+       - 构建包含 `recipe_id`, `author_id`, `dish_name`, `date_published`, `cook_time`, `prep_time`, `total_time`, `description`, `aggr_rating`, `review_cnt`, `yield`, `servings`, `calories`, `fat`, `saturated_fat`, `cholesterol`, `sodium`, `carbohydrate`, `fiber`, `sugar`, `protein` 的 CSV 文件。
+       - 使用 `COPY` 方法将数据导入数据库。
 
-4. **`favors_recipe` 表**
-   - 从 `recipes.csv` 文件中解析用户收藏的食谱关系。
-   - 构建包含 `author_id` 和 `recipe_id` 的 CSV 文件。
-   - 使用 `COPY` 方法将数据导入数据库。
+    4. **`favors_recipe` 表**
+       - 从 `recipes.csv` 文件中解析用户收藏的食谱关系。
+       - 构建包含 `author_id` 和 `recipe_id` 的 CSV 文件。
+       - 使用 `COPY` 方法将数据导入数据库。
 
-5. **`review` 表**
-   - 从 `reviews.csv` 文件中读取评论信息。
-   - 构建包含 `review_id`, `recipe_id`, `author_id`, `rating`, `review_text`, `date_submit`, `date_modify` 的 CSV 文件。
-   - 使用 `COPY` 方法将数据导入数据库。
+    5. **`review` 表**
+       - 从 `reviews.csv` 文件中读取评论信息。
+       - 构建包含 `review_id`, `recipe_id`, `author_id`, `rating`, `review_text`, `date_submit`, `date_modify` 的 CSV 文件。
+       - 使用 `COPY` 方法将数据导入数据库。
 
-6. **`likes_review` 表**
-   - 从 `reviews.csv` 文件中解析用户点赞评论的关系。
-   - 构建包含 `author_id` 和 `review_id` 的 CSV 文件。
-   - 使用 `COPY` 方法将数据导入数据库。
+    6. **`likes_review` 表**
+       - 从 `reviews.csv` 文件中解析用户点赞评论的关系。
+       - 构建包含 `author_id` 和 `review_id` 的 CSV 文件。
+       - 使用 `COPY` 方法将数据导入数据库。
 
-7. **`keyword` 表**
-   - 从 `recipes.csv` 文件中提取关键词。
-   - 构建包含 `keyword_name` 的 CSV 文件。
-   - 使用 `COPY` 方法将数据导入数据库。
+    7. **`keyword` 表**
+       - 从 `recipes.csv` 文件中提取关键词。
+       - 构建包含 `keyword_name` 的 CSV 文件。
+       - 使用 `COPY` 方法将数据导入数据库。
 
-8. **`ingredient` 表**
-   - 从 `recipes.csv` 文件中提取食材信息。
-   - 构建包含 `ingredient_name` 的 CSV 文件。
-   - 使用 `COPY` 方法将数据导入数据库。
+    8. **`ingredient` 表**
+       - 从 `recipes.csv` 文件中提取食材信息。
+       - 构建包含 `ingredient_name` 的 CSV 文件。
+       - 使用 `COPY` 方法将数据导入数据库。
 
-9. **`instruction` 表**
-   - 从 `recipes.csv` 文件中提取食谱步骤信息。
-   - 构建包含 `recipe_id`, `step_no`, `instruction_text` 的 CSV 文件。
-   - 使用 `COPY` 方法将数据导入数据库。
+    9. **`instruction` 表**
+       - 从 `recipes.csv` 文件中提取食谱步骤信息。
+       - 构建包含 `recipe_id`, `step_no`, `instruction_text` 的 CSV 文件。
+       - 使用 `COPY` 方法将数据导入数据库。
 
-10. **`category` 表**
-    - 从 `recipes.csv` 文件中提取分类信息。
-    - 构建包含 `category_name` 的 CSV 文件。
-    - 使用 `COPY` 方法将数据导入数据库。
+    10. **`category` 表**
+        - 从 `recipes.csv` 文件中提取分类信息。
+        - 构建包含 `category_name` 的 CSV 文件。
+        - 使用 `COPY` 方法将数据导入数据库。
 
-11. **`has_keyword` 表**
-    - 从 `recipes.csv` 文件中解析食谱与关键词的关系。
-    - 构建包含 `recipe_id` 和 `keyword_id` 的 CSV 文件。
-    - 使用 `COPY` 方法将数据导入数据库。
+    11. **`has_keyword` 表**
+        - 从 `recipes.csv` 文件中解析食谱与关键词的关系。
+        - 构建包含 `recipe_id` 和 `keyword_id` 的 CSV 文件。
+        - 使用 `COPY` 方法将数据导入数据库。
 
-12. **`has_ingredient` 表**
-    - 从 `recipes.csv` 文件中解析食谱与食材的关系。
-    - 构建包含 `recipe_id` 和 `ingredient_id` 的 CSV 文件。
-    - 使用 `COPY` 方法将数据导入数据库。
+    12. **`has_ingredient` 表**
+        - 从 `recipes.csv` 文件中解析食谱与食材的关系。
+        - 构建包含 `recipe_id` 和 `ingredient_id` 的 CSV 文件。
+        - 使用 `COPY` 方法将数据导入数据库。
 
-13. **`has_category` 表**
-    - 从 `recipes.csv` 文件中解析食谱与分类的关系。
-    - 构建包含 `recipe_id` 和 `category_id` 的 CSV 文件。
-    - 使用 `COPY` 方法将数据导入数据库。
+    13. **`has_category` 表**
+        - 从 `recipes.csv` 文件中解析食谱与分类的关系。
+        - 构建包含 `recipe_id` 和 `category_id` 的 CSV 文件。
+        - 使用 `COPY` 方法将数据导入数据库。
 
-#### 数据导入
-使用 PostgreSQL 的 `COPY` 方法将构建好的 CSV 文件批量导入数据库。`COPY` 方法支持高效的数据导入，能够显著提升导入性能。在导入过程中，通过进度条实时显示导入进度，确保导入过程的可视化。
+  - #### 数据导入
+    使用 PostgreSQL 的 `COPY` 方法将构建好的 CSV 文件批量导入数据库。`COPY` 方法支持高效的数据导入，能够显著提升导入性能。在导入过程中，通过进度条实时显示导入进度，确保导入过程的可视化。
 
-### 性能优化
+- ### 性能优化
 为了提升数据导入性能，采取了以下优化措施：
 - **预处理数据**：通过预处理阶段，确保数据格式一致，减少导入时的错误处理。
 - **批量导入**：使用 PostgreSQL 的 `COPY` 方法进行批量导入，减少单条插入的开销。
 
 
+
 ## 6. 任务四： 比较DBMS与文件I/O
-- #### 测试环境
+- ### 测试环境
   - **硬件配置**
     - *CPU型号*：12th Gen Intel(R) Core(TM) i9-12900H @ 2.50 GHz (14 cores / 20 threads)
     - *内存大小*：64 GB DDR5 @ 4800 MT/s
@@ -261,13 +264,16 @@ https://online.visual-paradigm.com
       - **com.opencsv:opencsv:5.10** — CSV 文件解析库，用于导入原始数据
       - **com.zaxxer:HikariCP:5.1.0** — 高性能数据库连接池，用于实现高并发下的连接复用
     - *项目编码*：UTF-8
+- ### 组织测试数据
+- ### 测试代码
+- ### 对比结果
 
 ## 7. 任务五： 高并发查询处理（任务四 bonus 1）
-- #### 测试环境
+- ### 测试环境
   同任务四
 
 
-- #### 高并发性能分析方法
+- ### 高并发性能分析方法
   - 任务五选择**每秒查询处理量 QPS**代表吞吐量，作为性能指标。每组实验重复三次取`QPS`平均值。人为指定`THREAD_COUNT`（模拟多用户）、`TOTAL_QUERIES`（模拟高并发），生成随机`recipe_id`。`recipe`表格作为我们数据库设计中数据量最大的单个表格，适用于高并发性能探索高并发测试的每次实验记录日志，储存在`logs`文件夹。
   - 本实验的高并发性能分析中，我们选择使用 `SELECT` 语句而非 `INSERT`、`DELETE` 或 `UPDATE`
   其原因在于：
@@ -275,11 +281,11 @@ https://online.visual-paradigm.com
     - 写操作（如 `INSERT`/`DELETE`）会引发行锁或页锁竞争，掩盖数据库真实的查询性能
   
 
-- #### 预查询优化
+- ### 预查询优化
   为提高查询效率，我们针对高频查询字段建立了多组**索引**。
 例如，在 `review` 表中对 `recipe_id` 建立 B-Tree 索引后，通过 EXPLAIN ANALYZE 观察到执行计划由 Seq Scan 变为 Index Scan，execution time 由 187.05 ms 降至 0.13 ms。因此，在接下来的高并发查询处理中，我们使用建立索引的方式优化基本的查询性能。以下探索均用到索引。
 
-- #### Baseline
+- ### Baseline
   - **基线搭建**：
   使用了线程池`ExecutorService`来并发执行查询，每个线程依旧通过 `DriverManager.getConnection()` 独立建立数据库连接。
     使用 Java 多线程（50 线程、共 10,000 次查询）执行：
@@ -301,7 +307,7 @@ https://online.visual-paradigm.com
   - **解决方案**：
     引入 **连接池（HikariCP）** 优化
 
-- #### HikariCP
+- ### HikariCP
   - **HikariCP搭建**：
   连接池预先建立固定数量可复用连接，避免频繁连接创建与销毁带来的高昂开销。同时，启用 `PreparedStatement`缓存，不再让数据库重复编译解析SQL。该优化预期可显著提升并发吞吐量（QPS），并在数据库中维持稳定数量的活动连接。
   连接池最大设置为`THREAD_COUNT`，最小设置为`THREAD_COUNT / 2`。引入连接池后，线程池与连接池结合，线程可复用固定数量的数据库连接，从而显著降低连接延迟。
@@ -311,7 +317,7 @@ https://online.visual-paradigm.com
    queries/s`，已实现高并发查询功能
   - **探索不同THREAD_COUNT，TOTAL_QUERIES条件的性能表现**
   分别设置`TOTAL_QUERIES`为200000、500000、1000000，对每个`TOTAL_QUERIES`分别设置`THREAD_COUNT`为50、300、1000。共进行3*3 = 9组实验，每组实验重复三次，结果取平均值。结果如下：
-    ##### 表 1. 不同并发线程数与查询总量下的 QPS（Queries Per Second）
+    ###### 表 1. 不同并发线程数与查询总量下的 QPS（Queries Per Second）
 
     | 总查询数                 | 线程数 = 50  |  线程数 = 300  |线程数 = 1000|
     |---------------------------|--------------|---------------|-----------|
