@@ -146,7 +146,107 @@ https://online.visual-paradigm.com
   - `recipe_id` → `recipe(recipe_id)`  
   - `category_id` → `category(category_id)`  
   
-## 5. 任务三： 数据导入
+## 5. 任务三：数据导入
+
+### 导入流程概述
+本次项目的数据导入使用 JDBC 连接数据库，并通过 PostgreSQL 的 `COPY` 方法实现高效的数据导入。整个导入流程包括数据预处理、CSV 文件构建以及数据导入三个主要阶段。数据预处理阶段对原始的 `recipes.csv` 和 `reviews.csv` 文件进行格式整理和非法字符替换，确保数据的合法性和一致性。随后，通过 OpenCSV 库解析 CSV 文件内容，并根据数据库表结构构建对应的 CSV 文件。最后，使用 PostgreSQL 的 `COPY` 方法将数据批量导入数据库。总数据量约为 2200 万行，全过程平均导入时间为 235 秒。
+
+### 导入代码结构
+导入代码主要由以下几部分组成：
+- **工具类**
+  - **ConsoleProgressBar.java**：进度条类，用于在终端显示导入进度，实现导入流程的可视化。
+  - **JsonParamReader.java**：JSON 参数读取类，用于从配置文件中读取数据库连接参数和文件路径，避免硬编码。
+- **核心导入类**
+  - **Copy.java**：封装 PostgreSQL 的 `CopyManager`，用于实现预构建 CSV 文件的批量导入。
+  - **TableCreator.java**：用于创建数据库表结构。
+  - **Importer.java**：包含主方法，实现数据预处理、表结构构建、CSV 数据构建以及数据导入的核心逻辑。
+
+### 数据导入具体流程
+数据导入流程分为以下几个步骤：
+
+#### 数据预处理
+使用 Java 的 `BufferedReader` 和 `BufferedWriter` 对原始的 `recipes.csv` 和 `reviews.csv` 文件进行逐行读取和处理。处理过程包括：
+- 合并因换行符导致的多行数据为单行。
+- 替换非法字符（如换行符、引号等），确保数据格式符合 CSV 标准。
+预处理后的数据重新写入文件，确保后续导入的顺利进行。
+
+#### CSV 文件构建
+使用 OpenCSV 库解析预处理后的 CSV 文件，并根据数据库表结构构建对应的 CSV 文件。具体流程如下：
+
+1. **`users` 表**
+   - 从 `user.csv` 文件中读取用户信息。
+   - 构建包含 `author_id`, `author_name`, `gender`, `age`, `following_cnt`, `follower_cnt` 的 CSV 文件。
+   - 使用 `COPY` 方法将数据导入数据库。
+
+2. **`follows` 表**
+   - 从 `user.csv` 文件中解析用户关注关系。
+   - 构建包含 `blogger_id` 和 `follower_id` 的 CSV 文件。
+   - 使用 `COPY` 方法将数据导入数据库。
+
+3. **`recipe` 表**
+   - 从 `recipes.csv` 文件中读取食谱信息。
+   - 构建包含 `recipe_id`, `author_id`, `dish_name`, `date_published`, `cook_time`, `prep_time`, `total_time`, `description`, `aggr_rating`, `review_cnt`, `yield`, `servings`, `calories`, `fat`, `saturated_fat`, `cholesterol`, `sodium`, `carbohydrate`, `fiber`, `sugar`, `protein` 的 CSV 文件。
+   - 使用 `COPY` 方法将数据导入数据库。
+
+4. **`favors_recipe` 表**
+   - 从 `recipes.csv` 文件中解析用户收藏的食谱关系。
+   - 构建包含 `author_id` 和 `recipe_id` 的 CSV 文件。
+   - 使用 `COPY` 方法将数据导入数据库。
+
+5. **`review` 表**
+   - 从 `reviews.csv` 文件中读取评论信息。
+   - 构建包含 `review_id`, `recipe_id`, `author_id`, `rating`, `review_text`, `date_submit`, `date_modify` 的 CSV 文件。
+   - 使用 `COPY` 方法将数据导入数据库。
+
+6. **`likes_review` 表**
+   - 从 `reviews.csv` 文件中解析用户点赞评论的关系。
+   - 构建包含 `author_id` 和 `review_id` 的 CSV 文件。
+   - 使用 `COPY` 方法将数据导入数据库。
+
+7. **`keyword` 表**
+   - 从 `recipes.csv` 文件中提取关键词。
+   - 构建包含 `keyword_name` 的 CSV 文件。
+   - 使用 `COPY` 方法将数据导入数据库。
+
+8. **`ingredient` 表**
+   - 从 `recipes.csv` 文件中提取食材信息。
+   - 构建包含 `ingredient_name` 的 CSV 文件。
+   - 使用 `COPY` 方法将数据导入数据库。
+
+9. **`instruction` 表**
+   - 从 `recipes.csv` 文件中提取食谱步骤信息。
+   - 构建包含 `recipe_id`, `step_no`, `instruction_text` 的 CSV 文件。
+   - 使用 `COPY` 方法将数据导入数据库。
+
+10. **`category` 表**
+    - 从 `recipes.csv` 文件中提取分类信息。
+    - 构建包含 `category_name` 的 CSV 文件。
+    - 使用 `COPY` 方法将数据导入数据库。
+
+11. **`has_keyword` 表**
+    - 从 `recipes.csv` 文件中解析食谱与关键词的关系。
+    - 构建包含 `recipe_id` 和 `keyword_id` 的 CSV 文件。
+    - 使用 `COPY` 方法将数据导入数据库。
+
+12. **`has_ingredient` 表**
+    - 从 `recipes.csv` 文件中解析食谱与食材的关系。
+    - 构建包含 `recipe_id` 和 `ingredient_id` 的 CSV 文件。
+    - 使用 `COPY` 方法将数据导入数据库。
+
+13. **`has_category` 表**
+    - 从 `recipes.csv` 文件中解析食谱与分类的关系。
+    - 构建包含 `recipe_id` 和 `category_id` 的 CSV 文件。
+    - 使用 `COPY` 方法将数据导入数据库。
+
+#### 数据导入
+使用 PostgreSQL 的 `COPY` 方法将构建好的 CSV 文件批量导入数据库。`COPY` 方法支持高效的数据导入，能够显著提升导入性能。在导入过程中，通过进度条实时显示导入进度，确保导入过程的可视化。
+
+### 性能优化
+为了提升数据导入性能，采取了以下优化措施：
+- **预处理数据**：通过预处理阶段，确保数据格式一致，减少导入时的错误处理。
+- **批量导入**：使用 PostgreSQL 的 `COPY` 方法进行批量导入，减少单条插入的开销。
+
+
 ## 6. 任务四： 比较DBMS与文件I/O
 - #### 测试环境
   - **硬件配置**
