@@ -1,7 +1,7 @@
 {
   "url": "jdbc:postgresql://localhost:5432/database_project",
   "user": "postgres",
-  "password": "Dr141592",
+  "password": "xxxxx",
   "schema": "cs307_project",
   "recipe_filepath": "src/main/resources/recipes.csv",
   "reviews_filepath": "src/main/resources/reviews.csv",
