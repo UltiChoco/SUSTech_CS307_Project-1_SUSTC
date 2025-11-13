@@ -3,22 +3,79 @@ package org.example.DBMSvsFileIO_test;
 import java.io.*;
 import java.sql.*;
 import java.util.*;
+import java.util.logging.*;
+import java.util.logging.Formatter;
+
+import org.example.JsonParamReader;
 
 public class DBMSvsFileIO {
 
-//---------------------- 配置参数 ----------------------//
     // 数据库连接参数
-    private static final String URL = "jdbc:postgresql://localhost:5432/sustc_db";
-    private static final String USER = "postgres";
-    private static final String PASSWORD = "676767";
-    private static final String SCHEMA = "public";
-    // .csv测试文件路径
-    private static final String CSV_PATH = "recipe.csv";
-    // 测试次数
-    private static final int N = 100;  // 每种操作执行次数
-//-----------------------------------------------------//
+    private static String URL;
+    private static String USER;
+    private static String PASSWORD;
+    private static String SCHEMA;
+    private static String CSV_PATH;
+    // 每种操作执行次数
+    private static final int N = 50;
+
+    // 日志对象
+    private static final Logger logger = Logger.getLogger(DBMSvsFileIO.class.getName());
+
+    static  {
+        // 加载 json 配置文件
+        try {
+            JsonParamReader jsonParamReader = new JsonParamReader("param.json");
+            URL = jsonParamReader.getString("url")
+                    .orElse("jdbc:postgresql://localhost:5432/database_project");
+            USER = jsonParamReader.getString("user").orElse("postgres");
+            PASSWORD = jsonParamReader.getString("password").orElse("xxxx");
+            SCHEMA = jsonParamReader.getString("schema").orElse("project_unlogged");
+            CSV_PATH = jsonParamReader.getString("recipe_filepath").orElse("recipe.csv");
+            System.out.println("[INFO] 配置加载成功：");
+        } catch (Exception e) {
+            System.err.println("[ERROR] Failed to load param.json: " + e.getMessage());
+        }
+        try {
+            // 自动检测有没有logs文件夹，没有的话会生成。注意，.gitignore已经忽略logs文件夹
+            File logDir = new File("logs");
+            if (!logDir.exists()) {
+                boolean created = logDir.mkdirs();
+                if (created) {
+                    System.out.println("[INFO] Created logs directory: " + logDir.getAbsolutePath());
+                } else {
+                    System.err.println("[WARNING] Failed to create logs directory, fallback to root directory.");
+                }
+            }
+            //配置日志输出到文件
+            String logFilePath = new File(logDir, "DBMS_vs_File_test.log").getPath();
+            FileHandler fileHandler = new FileHandler(logFilePath, true);
+            fileHandler.setFormatter(new Formatter() {
+                @Override
+                public String format(LogRecord record) {
+                    return record.getMessage() + System.lineSeparator();
+                }
+            });
+            logger.addHandler(fileHandler);
+            logger.setLevel(Level.INFO);
+
+            // 控制台输出
+            ConsoleHandler consoleHandler = new ConsoleHandler();
+            consoleHandler.setLevel(Level.INFO);
+            logger.addHandler(consoleHandler);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     public static void main(String[] args) {
+        String now = String.format("%1$tB %1$te, %1$tY %1$tI:%1$tM:%1$tS %1$Tp %2$s",
+                new java.util.Date(),
+                DBMSvsFileIO.class.getName());
+        logger.info(now);
+
+        logger.info("=== DBMS vs File I/O Test Started ====");
         try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD)) {
             conn.setAutoCommit(false);
             System.out.println("已连接 PostgreSQL 数据库\n");
@@ -37,7 +94,7 @@ public class DBMSvsFileIO {
         }
     }
 
-    // DBMS 部分
+    // DBMS
     private static Map<String, Double> testDBMS(Connection conn) throws Exception {
         Map<String, Double> avgTimes = new LinkedHashMap<>();
         Random rand = new Random();
@@ -81,7 +138,8 @@ public class DBMSvsFileIO {
         avgTimes.put("DELETE", avgTime(() -> {
             try (PreparedStatement ps = conn.prepareStatement(
                     "DELETE FROM recipe WHERE recipe_id = ?")) {
-                ps.setInt(1, rand.nextInt(1000) + 1);
+                //删除一个不存在的id，避免外键约束问题
+                ps.setInt(1, Integer.MAX_VALUE);
                 ps.executeUpdate();
                 conn.rollback();
             } catch (SQLException e) {
@@ -175,13 +233,22 @@ public class DBMSvsFileIO {
     }
 
     private static void printComparison(Map<String, Double> dbms, Map<String, Double> file) {
-        System.out.println("==== 性能对比结果（平均耗时，单位：ms） ====");
-        System.out.printf("%-10s %-20s %-20s %-10s%n", "操作类型", "PostgreSQL", "File I/O", "倍率差距");
+
+        logger.info("性能对比结果（平均耗时，单位：ms）：");
+
+        String header = String.format("%-10s %-20s %-20s %-10s",
+                "操作类型", "PostgreSQL", "File I/O", "倍率差距");
+        logger.info(header);
+
         for (String key : dbms.keySet()) {
             double t1 = dbms.get(key);
             double t2 = file.get(key);
-            System.out.printf("%-10s %-20.3f %-20.3f x%.2f%n", key, t1, t2, t2 / t1);
+            String line = String.format("%-10s %-20.3f %-20.3f x%.2f",
+                    key, t1, t2, t2 / t1);
+            logger.info(line);
         }
+        logger.info("==== DBMS vs File I/O Test Finished ====");
     }
+
 }
 

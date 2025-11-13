@@ -265,8 +265,181 @@ https://online.visual-paradigm.com
       - **com.zaxxer:HikariCP:5.1.0** — 高性能数据库连接池，用于实现高并发下的连接复用
     - *项目编码*：UTF-8
 - ### 组织测试数据
-- ### 测试代码
+  为了公平比较 DBMS 与 File I/O 环境下执行 `SELECT`、`INSERT`、`UPDATE`、`DELETE` 四类操作的效率，本次实验设计了两套等价的数据组织方式，但分别遵循这两种体系的典型数据结构：
+
+  - **DBMS（PostgreSQL）：**  关系型存储 + 索引 + 事务机制
+  - **File I/O ：**  基于 CSV 的纯文本顺序存储
+
+  #### （1）DBMS 数据组织方式
+    采用 `recipe` 表作为测试表
+    该表已被填充真实数据，因此不需要额外构造测试数据。程序仅使用：
+
+    - **随机生成的 recipe_id（1~1000）** 进行 `SELECT` / `UPDATE`
+    - **不存在的 recipe_id（Integer.MAX_VALUE）** 进行 `DELETE`（避免外键约束）
+    - **随机生成的临时 dish_name** 用于 `INSERT`
+
+    所有 SQL 参数由 Java 程序自动绑定，不需要外部 SQL 脚本
+    所有修改类操作均在关闭自动提交的事务中执行，并在每次操作后调用 `rollback()`，确保数据库不会被污染。
+
+    用于测试的 SQL 结构如下：
+
+  - **SELECT**
+  ```sql
+  SELECT * FROM recipe WHERE recipe_id = ?;
+  ```
+
+  - **INSERT** （插入临时数据）
+  ```sql
+  INSERT INTO recipe(author_id, dish_name, date_published)
+  VALUES (1, 'TempDish_xxx', CURRENT_DATE);
+  ```
+
+  - **UPDATE** (空更新，以测量索引定位成本)
+  ```sql
+  UPDATE recipe SET dish_name = dish_name WHERE recipe_id = ?;
+  ```
+
+  - **DELETE**（删除不存在的 id）
+  ```sql
+  DELETE FROM recipe WHERE recipe_id = Integer.MAX_VALUE;
+  ```
+  #### （2）File I/O 数据组织方式
+  采用`recipes.csv`原始文件作为测试文件，所有 File I/O 的写操作最终写入临时文件并立即删除，以保持文件不被污染。
+  由于文本文件缺乏索引，因此四类操作必须按顺序扫描或重写实现：
+
+  - **SELECT：**（顺序扫描）
+    - 逐行读取 CSV
+    - 查找以 recipe_id, 开头的目标行
+    ```java
+    while ((line = br.readLine()) != null) {
+    if (line.startsWith(target + ",")) break;
+    }
+    ```
+
+  - **INSERT：**（追加写入文件末尾）
+    - 使用 FileWriter(CSV_PATH, true)
+    - 将新行直接追加，不读取原文件
+    ```java
+    bw.write("999999,TempDish_xxx,1,2025-11-12\n");
+    ```
+
+  - **UPDATE：**（读入全部 → 修改 → 写回临时文件）
+    - 读取完整文件到 List
+    - 找到匹配行时用字符串替换模拟更新
+    - 将全部内容写回临时文件
+    - 最终删除临时文件，保持原文件不变
+
+  - **DELETE：**（过滤行 → 写回临时文件）
+    - 逐行读取原文件
+    - 跳过匹配行
+    - 将其余内容写入临时文件
+    - 删除临时文件
+    
+- ### 测试代码流程
+  测试程序主体位于 `DBMSvsFileIO.java`，以下介绍代码流程框架：
+    - **统一计时框架**:代码中的`avgTime`方法，所有操作均执行 `N=50`次，取平均值，降低一次性波动带来的偏差。
+    
+    ```mermaid
+  flowchart TD
+
+    %% ========== 样式 ==========
+    classDef startEnd fill:#4CAF50,stroke:#2E7D32,color:white,font-weight:bold
+    classDef dbms fill:#1976D2,stroke:#0D47A1,color:white
+    classDef fileio fill:#FF9800,stroke:#EF6C00,color:white
+    classDef normal fill:#BDBDBD,stroke:#616161,color:black
+    classDef title fill:#455A64,stroke:#1C313A,color:white,font-weight:bold
+
+    %% ========== 主流程 ==========
+    A[开始运行程序]:::startEnd --> B[读取 JSON 配置文件]
+    B --> C[创建日志系统]
+    C --> D[建立 PostgreSQL 连接并设置 search_path]
+
+    %% ========== DBMS 分组 ==========
+    subgraph DBMS_Test[DBMS]
+        direction TB
+        E[执行 testDBMS]:::title
+        E --> E1[DBMS SELECT 随机主键查询]:::dbms
+        E1 --> E2[DBMS INSERT 写入临时数据, 回滚]:::dbms
+        E2 --> E3[DBMS UPDATE 空更新, 回滚]:::dbms
+        E3 --> E4[DBMS DELETE 删除不存在ID]:::dbms
+        E4 --> F[DBMS 测试结束]:::normal
+    end
+
+    %% ========== File I/O 分组 ==========
+    subgraph FileIO_Test[File I/O]
+        direction TB
+        G[执行 testFileIO]:::title
+        G --> G1[File SELECT 顺序扫描CSV]:::fileio
+        G1 --> G2[File INSERT 追加写入CSV]:::fileio
+        G2 --> G3[File UPDATE 文件读入, 修改, 写回]:::fileio
+        G3 --> G4[File DELETE 过滤行,写入临时文件]:::fileio
+        G4 --> H[File I/O 测试结束]:::normal
+    end
+
+    %% ========== 汇总 ==========
+    D --> E
+    D --> G
+
+    F --> I[printComparison 输出对比表]:::normal
+    H --> I
+
+    I --> J[写入日志文件]:::normal
+    J --> K[程序结束]:::startEnd
+
 - ### 对比结果
+  - #### 性能对比数据
+     ###### 表 1. 性能对比结果（平均耗时，单位：ms）
+
+    | 操作类型 | PostgreSQL (ms) | File I/O (ms) | 倍率差距 |
+    |----------|------------------|----------------|-----------|
+    | SELECT   | 0.829            | 3.411          | x4.11     |
+    | INSERT   | 0.876            | 0.271          | x0.31     |
+    | UPDATE   | 0.653            | 2489.544       | x3814.21  |
+    | DELETE   | 0.555            | 2269.900       | x4092.64  |
+  - #### 性能差异分析
+    - **SELECT：DBMS 优于 File I/O（约 4 倍）**  
+      - PostgreSQL 在 `recipe_id` 上拥有 B+ 树索引，随机按主键查询时只需 O(log n) 的开销
+      - File I/O 的 `SELECT` 必须顺序扫描 CSV 文件，复杂度为 **O(n)**
+      - 因此在大数据场景下 DBMS 的 `SELECT` 效率远高于文件扫描
+
+    -  **INSERT：File I/O 快于 DBMS（约 3 倍）**  
+       - File I/O 的插入是直接在文件尾部顺序写入，开销极低  
+       - DBMS 的 `INSERT`需要维护 WAL 日志、索引、事务、安全性检查等，额外开销较大
+
+    - **UPDATE：File I/O 远慢于 DBMS（约 3800 倍）**  
+      - DBMS `UPDATE`依赖索引定位并修改记录所在的数据页，属于 **O(log n)**  
+      - File I/O `UPDATE`必须读入整个 CSV，修改目标行后重新写回临时文件，属于 O(n) 线性重写
+      - 因此随着数据量增加，其性能会急剧下降
+
+    -  **DELETE：File I/O 远慢于（约 4000 倍）**  
+       - DBMS `DELETE` 通过索引快速定位要删除的行，属于接近 **O(log n)** 的操作  
+       - File I/O `DELETE`需要扫描整个文件并将非目标行写入临时文件，是典型的线性重写过程
+
+  - #### 有趣现象
+
+    -  **File I/O 的 INSERT 反超 DBMS**  
+       - 在没有事务和约束的简单写入场景下，文件系统的顺序写速度极高，甚至优于 DBMS  
+       - 说明轻量级数据写入任务未必一定要用数据库。
+
+    -  **File I/O 中 UPDATE 和 DELETE 呈现显著变慢**  
+       - File I/O 的 `UPDATE`/`DELETE` 基本等价于重写整个文件
+       - 而 `INSERT`则完全不受文件规模增长影响
+
+    - **DBMS 的 UPDATE/DELETE 与 SELECT 在同一个数量级**  
+       - 由于索引、页式存储、MVCC 等设计，使得 PostgreSQL 能够在毫秒级完成多种复杂操作。  
+       - 说明 DBMS 在应对“修改型工作负载”时具有极强的结构化优化能力
+  
+  - #### 创新见解
+    -  **DBMS 与 File I/O 的选择**  
+       - 如果业务需求以读取为主、更新少、只需顺序写入，可用轻量级文件存储  
+       - 如果需要频繁的查询、更新、删除、并发控制，则必须选择 DBMS
+    -  **选择合适的存储结构比选择更快的 CPU 更重要**  
+       - 本实验运行在高性能硬件（i9-12900H + DDR5 4800MHz），但 File I/O 在 UPDATE/DELETE 上仍然比 DBMS 慢 3000–4000 倍 
+       - 硬件性能的提升无法弥补不合理的数据结构带来的系统性性能瓶颈
+    -  **使用事务 + 回滚实现无副作用性能测试**  
+       - 能充分触发索引、日志、锁等数据库内部机制
+       - 不会污染真实数据，适合基准测试
+ 
 
 ## 7. 任务五： 高并发查询处理（任务四 bonus 1）
 - ### 测试环境
@@ -291,8 +464,7 @@ https://online.visual-paradigm.com
     使用 Java 多线程（50 线程、共 10,000 次查询）执行：
     ```sql
     SELECT * FROM recipe WHERE recipe_id = ?
-    ```
-    每次查询独立创建并关闭 JDBC 连接，日志记录至 `logs/baseline_test.log`
+  每次查询独立创建并关闭 JDBC 连接，日志记录至 `logs/concurrent_baseline_test.log`
 
   - **实验结果与问题分析**：
     实验运行后程序停滞在启动阶段，CPU 占用升高但无输出结果。
@@ -317,7 +489,7 @@ https://online.visual-paradigm.com
    queries/s`，已实现高并发查询功能
   - **探索不同THREAD_COUNT，TOTAL_QUERIES条件的性能表现**
   分别设置`TOTAL_QUERIES`为200000、500000、1000000，对每个`TOTAL_QUERIES`分别设置`THREAD_COUNT`为50、300、1000。共进行3*3 = 9组实验，每组实验重复三次，结果取平均值。结果如下：
-    ###### 表 1. 不同并发线程数与查询总量下的 QPS（Queries Per Second）
+    ###### 表 2. 不同并发线程数与查询总量下的 QPS（Queries Per Second）
 
     | 总查询数                 | 线程数 = 50  |  线程数 = 300  |线程数 = 1000|
     |---------------------------|--------------|---------------|-----------|

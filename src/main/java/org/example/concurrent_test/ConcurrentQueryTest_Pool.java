@@ -2,6 +2,8 @@ package org.example.concurrent_test;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.example.JsonParamReader;
+
 import java.io.File;
 import java.io.IOException;
 import java.sql.*;
@@ -12,10 +14,10 @@ import java.util.logging.*;
 public class ConcurrentQueryTest_Pool {
 
     // 数据库连接参数
-    private static final String URL = "jdbc:postgresql://localhost:5432/sustc_db?currentSchema=public";
-    private static final String USER = "postgres";
-    private static final String PASSWORD = "676767";
-    private static final String SCHEMA = "public";
+    private static String URL;
+    private static String USER;
+    private static String PASSWORD;
+    private static String SCHEMA;
 
     // 并发参数
     private static final int THREAD_COUNT = 1000;       // 并发线程数
@@ -26,6 +28,17 @@ public class ConcurrentQueryTest_Pool {
     private static final Logger logger = Logger.getLogger(ConcurrentQueryTest_Pool.class.getName());
 
     static {
+        // 加载 json 配置文件
+        try {
+            JsonParamReader jsonParamReader = new JsonParamReader("param.json");
+            URL = jsonParamReader.getString("url")
+                    .orElse("jdbc:postgresql://localhost:5432/database_project");
+            USER = jsonParamReader.getString("user").orElse("postgres");
+            PASSWORD = jsonParamReader.getString("password").orElse("xxxx");
+            SCHEMA = jsonParamReader.getString("schema").orElse("project_unlogged");
+        } catch (Exception e) {
+            System.err.println("[ERROR] Failed to load param.json: " + e.getMessage());
+        }
         try {
             // 自动检测 logs 文件夹
             File logDir = new File("logs");
@@ -39,7 +52,7 @@ public class ConcurrentQueryTest_Pool {
             }
 
             //配置日志输出到文件
-            String logFileName = String.format("pool_test_T%d_Q%d.log", THREAD_COUNT, TOTAL_QUERIES);
+            String logFileName = String.format("concurrent_pool_test_T%d_Q%d.log", THREAD_COUNT, TOTAL_QUERIES);
             String logFilePath = new File(logDir, logFileName).getPath();
             FileHandler fileHandler = new FileHandler(logFilePath, true);
             fileHandler.setFormatter(new Formatter() {

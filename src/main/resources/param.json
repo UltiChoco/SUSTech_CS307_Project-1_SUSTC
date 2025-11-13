@@ -1,8 +1,8 @@
 {
-  "url": "jdbc:postgresql://localhost:5432/database_project",
+  "url": "jdbc:postgresql://localhost:5432/sustc_db",
   "user": "postgres",
-  "password": "xxxxx",
-  "schema": "cs307_project",
+  "password": "676767",
+  "schema": "public",
   "recipe_filepath": "src/main/resources/recipes.csv",
   "reviews_filepath": "src/main/resources/reviews.csv",
   "user_filepath": "src/main/resources/user.csv"

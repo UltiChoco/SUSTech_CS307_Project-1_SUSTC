@@ -32,6 +32,7 @@ public class Importer {
         boolean del = true;
         Importer importer = new Importer(url,user,password,schema,del,recipe_filepath,reviews_filepath,user_filepath);
         long start = System.currentTimeMillis();
+        System.out.println("start timekeeping");
         System.out.println("processing csv_file...");
         importer.processCSV(recipe_filepath);
         importer.processCSV(reviews_filepath);
@@ -52,7 +53,8 @@ public class Importer {
         importer.copyToHas_Category();
 
         long end = System.currentTimeMillis();
-        System.out.println((end-start)/1000.0);
+        System.out.println("end timekeeping");
+        System.out.println("total time:" + (end-start)/1000.0 + "s");
     }
 
     private final Connection connection;

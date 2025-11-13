@@ -35,6 +35,7 @@ public class Importer_pro {
         boolean del = true;
         Importer_pro importer = new Importer_pro(url,user,password,schema,del,recipe_filepath,reviews_filepath,user_filepath);
         long start = System.currentTimeMillis();
+        System.out.println("start timekeeping");
         System.out.println("processing csv_file...");
 
         // Parallelize CSV processing
@@ -91,7 +92,8 @@ public class Importer_pro {
         importer.enableForeignKeyConstraints();
 
         long end = System.currentTimeMillis();
-        System.out.println((end-start)/1000.0);
+        System.out.println("end timekeeping");
+        System.out.println("total time:" + (end-start)/1000.0 + "s");
 
     }
 
