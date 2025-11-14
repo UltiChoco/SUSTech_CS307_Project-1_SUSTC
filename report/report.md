@@ -250,96 +250,93 @@ https://online.visual-paradigm.com
 
 
 
-## 6. 任务四： 比较DBMS与文件I/O
+# SUSTech CS307 Project Part I — Report
+## 6. 任务四：比较DBMS与文件I/O
+
 - ### 测试环境
-  - **硬件配置**
-    - *CPU型号*：12th Gen Intel(R) Core(TM) i9-12900H @ 2.50 GHz (14 cores / 20 threads)
-    - *内存大小*：64 GB DDR5 @ 4800 MT/s
-  - **软件环境**
-    - *DBMS*：PostgreSQL 17.4 on x86_64-windows
-    - *JDK*：OpenJDK 11（由 `pom.xml` 指定）
-    - *构建工具*：Apache Maven 3.9.9
-    - *主要依赖*：
-      - **org.postgresql:postgresql:42.7.3** — PostgreSQL 官方 JDBC 驱动，用于数据库连接
-      - **com.opencsv:opencsv:5.10** — CSV 文件解析库，用于导入原始数据
-      - **com.zaxxer:HikariCP:5.1.0** — 高性能数据库连接池，用于实现高并发下的连接复用
-    - *项目编码*：UTF-8
+    - **硬件配置**
+        - *CPU型号*：12th Gen Intel(R) Core(TM) i9-12900H @ 2.50 GHz (14 cores / 20 threads)
+        - *内存大小*：64 GB DDR5 @ 4800 MT/s
+    - **软件环境**
+        - *DBMS*：PostgreSQL 17.4 on x86_64-windows
+        - *JDK*：OpenJDK 11（由 `pom.xml` 指定）
+        - *构建工具*：Apache Maven 3.9.9
+        - *主要依赖*：
+            - **org.postgresql:postgresql:42.7.3** — PostgreSQL 官方 JDBC 驱动，用于数据库连接
+            - **com.opencsv:opencsv:5.10** — CSV 文件解析库，用于导入原始数据
+            - **com.zaxxer:HikariCP:5.1.0** — 高性能数据库连接池，用于实现高并发下的连接复用
+        - *项目编码*：UTF-8
+
 - ### 组织测试数据
   为了公平比较 DBMS 与 File I/O 环境下执行 `SELECT`、`INSERT`、`UPDATE`、`DELETE` 四类操作的效率，本次实验设计了两套等价的数据组织方式，但分别遵循这两种体系的典型数据结构：
-
-  - **DBMS（PostgreSQL）：**  关系型存储 + 索引 + 事务机制
-  - **File I/O ：**  基于 CSV 的纯文本顺序存储
+    - **DBMS（PostgreSQL）**：关系型存储 + 索引 + 事务机制
+    - **File I/O**：基于 CSV 的纯文本顺序存储
 
   #### （1）DBMS 数据组织方式
-    采用 `recipe` 表作为测试表
-    该表已被填充真实数据，因此不需要额外构造测试数据。程序仅使用：
-
+  采用 `recipe` 表作为测试表，该表已被填充真实数据，因此不需要额外构造测试数据。程序仅使用：
     - **随机生成的 recipe_id（1~1000）** 进行 `SELECT` / `UPDATE`
     - **不存在的 recipe_id（Integer.MAX_VALUE）** 进行 `DELETE`（避免外键约束）
     - **随机生成的临时 dish_name** 用于 `INSERT`
 
-    所有 SQL 参数由 Java 程序自动绑定，不需要外部 SQL 脚本
-    所有修改类操作均在关闭自动提交的事务中执行，并在每次操作后调用 `rollback()`，确保数据库不会被污染。
+  所有 SQL 参数由 Java 程序自动绑定，不需要外部 SQL 脚本。所有修改类操作均在关闭自动提交的事务中执行，并在每次操作后调用 `rollback()`，确保数据库不会被污染。
 
-    用于测试的 SQL 结构如下：
-
-  - **SELECT**
+  用于测试的 SQL 结构如下：
+    - **SELECT**
   ```sql
   SELECT * FROM recipe WHERE recipe_id = ?;
   ```
 
-  - **INSERT** （插入临时数据）
+    - **INSERT**（插入临时数据）
   ```sql
   INSERT INTO recipe(author_id, dish_name, date_published)
   VALUES (1, 'TempDish_xxx', CURRENT_DATE);
   ```
 
-  - **UPDATE** (空更新，以测量索引定位成本)
+    - **UPDATE** (空更新，以测量索引定位成本)
   ```sql
   UPDATE recipe SET dish_name = dish_name WHERE recipe_id = ?;
   ```
 
-  - **DELETE**（删除不存在的 id）
+    - **DELETE**（删除不存在的 id）
   ```sql
   DELETE FROM recipe WHERE recipe_id = Integer.MAX_VALUE;
   ```
+
   #### （2）File I/O 数据组织方式
-  采用`recipes.csv`原始文件作为测试文件，所有 File I/O 的写操作最终写入临时文件并立即删除，以保持文件不被污染。
-  由于文本文件缺乏索引，因此四类操作必须按顺序扫描或重写实现：
+  采用`recipes.csv`原始文件作为测试文件，所有 File I/O 的写操作最终写入临时文件并立即删除，以保持文件不被污染。由于文本文件缺乏索引，因此四类操作必须按顺序扫描或重写实现：
+    - **SELECT**：（顺序扫描）
+        - 逐行读取 CSV
+        - 查找以 recipe_id, 开头的目标行
+      ```java
+      while ((line = br.readLine()) != null) {
+      if (line.startsWith(target + ",")) break;
+      }
+      ```
 
-  - **SELECT：**（顺序扫描）
-    - 逐行读取 CSV
-    - 查找以 recipe_id, 开头的目标行
-    ```java
-    while ((line = br.readLine()) != null) {
-    if (line.startsWith(target + ",")) break;
-    }
-    ```
+    - **INSERT**：（追加写入文件末尾）
+        - 使用 FileWriter(CSV_PATH, true)
+        - 将新行直接追加，不读取原文件
+      ```java
+      bw.write("999999,TempDish_xxx,1,2025-11-12\n");
+      ```
 
-  - **INSERT：**（追加写入文件末尾）
-    - 使用 FileWriter(CSV_PATH, true)
-    - 将新行直接追加，不读取原文件
-    ```java
-    bw.write("999999,TempDish_xxx,1,2025-11-12\n");
-    ```
+    - **UPDATE**：（读入全部 → 修改 → 写回临时文件）
+        - 读取完整文件到 List
+        - 找到匹配行时用字符串替换模拟更新
+        - 将全部内容写回临时文件
+        - 最终删除临时文件，保持原文件不变
 
-  - **UPDATE：**（读入全部 → 修改 → 写回临时文件）
-    - 读取完整文件到 List
-    - 找到匹配行时用字符串替换模拟更新
-    - 将全部内容写回临时文件
-    - 最终删除临时文件，保持原文件不变
+    - **DELETE**：（过滤行 → 写回临时文件）
+        - 逐行读取原文件
+        - 跳过匹配行
+        - 将其余内容写入临时文件
+        - 删除临时文件
 
-  - **DELETE：**（过滤行 → 写回临时文件）
-    - 逐行读取原文件
-    - 跳过匹配行
-    - 将其余内容写入临时文件
-    - 删除临时文件
-    
 - ### 测试代码流程
   测试程序主体位于 `DBMSvsFileIO.java`，以下介绍代码流程框架：
-    - **统一计时框架**:代码中的`avgTime`方法，所有操作均执行 `N=50`次，取平均值，降低一次性波动带来的偏差。
-    
-    ```mermaid
+    - **统一计时框架**：代码中的`avgTime`方法，所有操作均执行 `N=20`次，取平均值，降低一次性波动带来的偏差。
+
+  ```mermaid
   flowchart TD
 
     %% ========== 样式 ==========
@@ -368,11 +365,11 @@ https://online.visual-paradigm.com
     %% ========== File I/O 分组 ==========
     subgraph FileIO_Test[File I/O]
         direction TB
-        G[执行 testFileIO]:::title
-        G --> G1[File SELECT 顺序扫描CSV]:::fileio
-        G1 --> G2[File INSERT 追加写入CSV]:::fileio
-        G2 --> G3[File UPDATE 文件读入, 修改, 写回]:::fileio
-        G3 --> G4[File DELETE 过滤行,写入临时文件]:::fileio
+        G[执行 testFileIO 与 testFileIOStream]:::title
+        G --> G1[File SELECT 顺序扫描CSV/Stream过滤查找]:::fileio
+        G1 --> G2[File INSERT 追加写入CSV/Stream追加]:::fileio
+        G2 --> G3[File UPDATE 文件读入修改写回/Stream处理写临时文件]:::fileio
+        G3 --> G4[File DELETE 过滤行写临时文件/Stream过滤写临时文件]:::fileio
         G4 --> H[File I/O 测试结束]:::normal
     end
 
@@ -385,60 +382,62 @@ https://online.visual-paradigm.com
 
     I --> J[写入日志文件]:::normal
     J --> K[程序结束]:::startEnd
+  ```
 
 - ### 对比结果
-  - #### 性能对比数据
-     ###### 表 1. 性能对比结果（平均耗时，单位：ms）
+    - #### 性能对比数据
+  ###### 表 1. 性能对比结果（平均耗时，单位：ms）
 
-    | 操作类型 | PostgreSQL (ms) | File I/O (ms) | 倍率差距 |
-    |----------|------------------|----------------|-----------|
-    | SELECT   | 0.829            | 3.411          | x4.11     |
-    | INSERT   | 0.876            | 0.271          | x0.31     |
-    | UPDATE   | 0.653            | 2489.544       | x3814.21  |
-    | DELETE   | 0.555            | 2269.900       | x4092.64  |
-  - #### 性能差异分析
-    - **SELECT：DBMS 优于 File I/O（约 4 倍）**  
-      - PostgreSQL 在 `recipe_id` 上拥有 B+ 树索引，随机按主键查询时只需 O(log n) 的开销
-      - File I/O 的 `SELECT` 必须顺序扫描 CSV 文件，复杂度为 **O(n)**
-      - 因此在大数据场景下 DBMS 的 `SELECT` 效率远高于文件扫描
+  | 操作类型 | PostgreSQL (ms) | File I/O (ms) | File Stream (ms) | File/DB倍率 | Stream/DB倍率 |
+    |----------|------------------|----------------|-------------------|-------------|---------------|
+  | SELECT   | 0.740            | 2.823          | 0.858             | x3.81       | x1.16         |
+  | INSERT   | 0.434            | 0.166          | 0.155             | x0.38       | x0.36         |
+  | UPDATE   | 0.346            | 1725.038       | 1619.469          | x4979.47    | x4674.74      |
+  | DELETE   | 0.238            | 1555.001       | 1706.257          | x6521.42    | x7155.77      |
 
-    -  **INSERT：File I/O 快于 DBMS（约 3 倍）**  
-       - File I/O 的插入是直接在文件尾部顺序写入，开销极低  
-       - DBMS 的 `INSERT`需要维护 WAL 日志、索引、事务、安全性检查等，额外开销较大
+    - #### 性能差异分析
+        - **SELECT：DBMS 优于传统 File I/O（约 3.8 倍），Stream 接近 DBMS**
+            - PostgreSQL 在 `recipe_id` 上基于 B+ 树索引，随机按主键查询复杂度为 **O(log n)**
+            - 传统 File I/O 需顺序扫描 CSV 文件，复杂度为 **O(n)**
+            - File Stream 借助流式处理的延迟加载特性，减少了部分内存开销，性能接近 DBMS（仅慢 16%），但仍依赖顺序扫描机制
 
-    - **UPDATE：File I/O 远慢于 DBMS（约 3800 倍）**  
-      - DBMS `UPDATE`依赖索引定位并修改记录所在的数据页，属于 **O(log n)**  
-      - File I/O `UPDATE`必须读入整个 CSV，修改目标行后重新写回临时文件，属于 O(n) 线性重写
-      - 因此随着数据量增加，其性能会急剧下降
+        - **INSERT：File I/O（含 Stream）快于 DBMS（约 2.6-2.8 倍）**
+            - File I/O 的插入是直接在文件尾部顺序写入，仅涉及磁盘追加操作，开销极低
+            - DBMS 的 `INSERT` 需要维护 WAL 日志、更新索引、进行事务管理和安全性检查，额外开销较大
+            - 传统 File I/O 与 Stream 性能接近，表明简单追加场景下两种文件操作方式效率差异微小
 
-    -  **DELETE：File I/O 远慢于（约 4000 倍）**  
-       - DBMS `DELETE` 通过索引快速定位要删除的行，属于接近 **O(log n)** 的操作  
-       - File I/O `DELETE`需要扫描整个文件并将非目标行写入临时文件，是典型的线性重写过程
+        - **UPDATE：File I/O（含 Stream）远慢于 DBMS（约 4674-4979 倍）**
+            - DBMS 的 `UPDATE` 依赖索引快速定位记录所在数据页，修改后仅需刷新对应页，复杂度接近 **O(log n)**
+            - File I/O 需读入整个 CSV 文件到内存，修改目标行后重新写回临时文件，属于 **O(n)** 线性操作，且受文件大小影响显著
+            - Stream 处理通过函数式编程简化了代码逻辑，但本质仍是全量读写，性能与传统 File I/O 接近
 
-  - #### 有趣现象
+        - **DELETE：File I/O（含 Stream）远慢于 DBMS（约 6521-7155 倍）**
+            - DBMS 的 `DELETE` 通过索引定位目标行并标记删除（或立即清除），操作效率接近 **O(log n)**
+            - File I/O 需要扫描整个文件并将非目标行写入临时文件，是典型的线性重写过程（**O(n)**）
+            - 本次测试中 Stream 实现的 DELETE 性能略差于传统 File I/O，可能因流式收集过程引入额外内存开销
 
-    -  **File I/O 的 INSERT 反超 DBMS**  
-       - 在没有事务和约束的简单写入场景下，文件系统的顺序写速度极高，甚至优于 DBMS  
-       - 说明轻量级数据写入任务未必一定要用数据库。
+    - #### 有趣现象
+        - **File Stream 对 SELECT 性能提升显著**
+            - 相比传统 BufferedReader 方式，Stream 的 `findFirst()` 操作能在匹配到目标行后立即终止流处理，减少了无效迭代，使性能提升约 70%
 
-    -  **File I/O 中 UPDATE 和 DELETE 呈现显著变慢**  
-       - File I/O 的 `UPDATE`/`DELETE` 基本等价于重写整个文件
-       - 而 `INSERT`则完全不受文件规模增长影响
+        - **INSERT 操作的“反超”现象**
+            - 在无事务、无索引维护的场景下，文件系统的顺序写性能可超越 DBMS，说明轻量级写入任务（如日志记录）可优先选择文件存储
 
-    - **DBMS 的 UPDATE/DELETE 与 SELECT 在同一个数量级**  
-       - 由于索引、页式存储、MVCC 等设计，使得 PostgreSQL 能够在毫秒级完成多种复杂操作。  
-       - 说明 DBMS 在应对“修改型工作负载”时具有极强的结构化优化能力
-  
-  - #### 创新见解
-    -  **DBMS 与 File I/O 的选择**  
-       - 如果业务需求以读取为主、更新少、只需顺序写入，可用轻量级文件存储  
-       - 如果需要频繁的查询、更新、删除、并发控制，则必须选择 DBMS
-    -  **选择合适的存储结构比选择更快的 CPU 更重要**  
-       - 本实验运行在高性能硬件（i9-12900H + DDR5 4800MHz），但 File I/O 在 UPDATE/DELETE 上仍然比 DBMS 慢 3000–4000 倍 
-       - 硬件性能的提升无法弥补不合理的数据结构带来的系统性性能瓶颈
-    -  **使用事务 + 回滚实现无副作用性能测试**  
-       - 能充分触发索引、日志、锁等数据库内部机制
-       - 不会污染真实数据，适合基准测试
+        - **UPDATE/DELETE 的“量级差距”**
+            - 两种文件操作方式在更新和删除时耗时均达到秒级，而 DBMS 保持在毫秒级，差距超过 4 个数量级，印证了文件存储不适合频繁修改的场景
+
+    - #### 创新见解
+        - **存储方案的选择需匹配操作特征**
+            - 若业务以“写多查少”且查询为顺序扫描为主（如日志系统），可选择 File I/O 以利用其高效追加能力
+            - 若存在大量随机查询、更新或删除操作，DBMS 是唯一可行方案，其索引和页式存储机制能突破文件系统的性能瓶颈
+
+        - **代码风格与性能的权衡**
+            - File Stream 以更简洁的函数式语法实现文件操作，在 SELECT 场景下性能接近传统方式，适合追求代码可读性的场景
+            - 但在 UPDATE/DELETE 等全量操作中，Stream 并未带来性能提升，此时传统 I/O 方式更直接高效
+
+        - **事务机制的“隐性成本”与价值**
+            - DBMS 的事务、日志、锁等机制导致 INSERT 性能低于文件，但这些机制保障了数据一致性和并发安全性，是企业级应用不可或缺的特性
+            - 实验中通过 `rollback()` 实现无副作用测试，既触发了 DBMS 内部机制，又避免了数据污染，为基准测试提供了可靠方法
  
 
 ## 7. 任务五： 高并发查询处理（任务四 bonus 1）

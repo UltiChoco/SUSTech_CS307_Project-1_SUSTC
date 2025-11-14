@@ -5,6 +5,8 @@ import java.sql.*;
 import java.util.*;
 import java.util.logging.*;
 import java.util.logging.Formatter;
+import java.nio.file.*;
+import java.util.stream.Collectors;
 
 import org.example.JsonParamReader;
 
@@ -17,7 +19,7 @@ public class DBMSvsFileIO {
     private static String SCHEMA;
     private static String CSV_PATH;
     // 每种操作执行次数
-    private static final int N = 50;
+    private static final int N = 20;
 
     // 日志对象
     private static final Logger logger = Logger.getLogger(DBMSvsFileIO.class.getName());
@@ -30,7 +32,7 @@ public class DBMSvsFileIO {
                     .orElse("jdbc:postgresql://localhost:5432/database_project");
             USER = jsonParamReader.getString("user").orElse("postgres");
             PASSWORD = jsonParamReader.getString("password").orElse("xxxx");
-            SCHEMA = jsonParamReader.getString("schema").orElse("project_unlogged");
+            SCHEMA = jsonParamReader.getString("schema").orElse("project");
             CSV_PATH = jsonParamReader.getString("recipe_filepath").orElse("recipe.csv");
             System.out.println("[INFO] 配置加载成功：");
         } catch (Exception e) {
@@ -82,19 +84,21 @@ public class DBMSvsFileIO {
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("SET search_path TO " + SCHEMA);
+                conn.commit();
+                System.out.println("已经完成路径切换");
             }
 
             Map<String, Double> dbmsResults = testDBMS(conn);
             Map<String, Double> fileResults = testFileIO();
+            Map<String, Double> streamResults = testFileIOStream();  // 新增Stream测试
 
-            printComparison(dbmsResults, fileResults);
+            printComparison(dbmsResults, fileResults, streamResults);  // 更新打印方法
 
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    // DBMS
     private static Map<String, Double> testDBMS(Connection conn) throws Exception {
         Map<String, Double> avgTimes = new LinkedHashMap<>();
         Random rand = new Random();
@@ -150,7 +154,6 @@ public class DBMSvsFileIO {
         return avgTimes;
     }
 
-    // File I/O 部分
     private static Map<String, Double> testFileIO() throws Exception {
         Map<String, Double> avgTimes = new LinkedHashMap<>();
         Random rand = new Random();
@@ -221,6 +224,82 @@ public class DBMSvsFileIO {
         return avgTimes;
     }
 
+    private static Map<String, Double> testFileIOStream() throws Exception {
+        Map<String, Double> avgTimes = new LinkedHashMap<>();
+        Random rand = new Random();
+        Path csvPath = Paths.get(CSV_PATH);
+
+        // SELECT：使用Stream过滤查找
+        avgTimes.put("SELECT", avgTime(() -> {
+            int target = rand.nextInt(1000) + 1;
+            String targetPrefix = target + ",";
+            try {
+                Files.lines(csvPath)
+                        .filter(line -> line.startsWith(targetPrefix))
+                        .findFirst(); // 找到第一个匹配项就停止
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }));
+
+        // INSERT：使用Stream追加（实际还是用传统方式更高效，这里仅作对比）
+        avgTimes.put("INSERT", avgTime(() -> {
+            String newLine = "999999,TempDish_Stream_" + rand.nextInt(100000) + ",1,2025-11-12";
+            try {
+                Files.write(csvPath,
+                        Collections.singletonList(newLine),
+                        StandardOpenOption.APPEND,
+                        StandardOpenOption.CREATE);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }));
+
+        // UPDATE：使用Stream处理并写入临时文件
+        avgTimes.put("UPDATE", avgTime(() -> {
+            int target = rand.nextInt(1000) + 1;
+            String targetPrefix = target + ",";
+            Path tempPath = Paths.get("recipe_stream_tmp.csv");
+            try {
+                List<String> updatedLines = Files.lines(csvPath)
+                        .map(line -> line.startsWith(targetPrefix) ?
+                                line.replaceFirst(",", "_updated,") : line)
+                        .collect(Collectors.toList());
+
+                Files.write(tempPath, updatedLines);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            try {
+                Files.deleteIfExists(tempPath);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }));
+
+        avgTimes.put("DELETE", avgTime(() -> {
+            int target = rand.nextInt(1000) + 1;
+            String targetPrefix = target + ",";
+            Path tempPath = Paths.get("recipe_stream_tmp.csv");
+            try {
+                List<String> remainingLines = Files.lines(csvPath)
+                        .filter(line -> !line.startsWith(targetPrefix))
+                        .collect(Collectors.toList());
+
+                Files.write(tempPath, remainingLines);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            try {
+                Files.deleteIfExists(tempPath);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }));
+
+        return avgTimes;
+    }
+
     private static double avgTime(Runnable action) {
         long total = 0;
         for (int i = 0; i < N; i++) {
@@ -232,23 +311,25 @@ public class DBMSvsFileIO {
         return total / 1e6 / N; // 返回毫秒平均值
     }
 
-    private static void printComparison(Map<String, Double> dbms, Map<String, Double> file) {
+    private static void printComparison(Map<String, Double> dbms, Map<String, Double> file, Map<String, Double> stream) {
 
         logger.info("性能对比结果（平均耗时，单位：ms）：");
 
-        String header = String.format("%-10s %-20s %-20s %-10s",
-                "操作类型", "PostgreSQL", "File I/O", "倍率差距");
+        String header = String.format("%-10s %-20s %-20s %-20s %-15s %-15s",
+                "操作类型", "PostgreSQL", "File I/O", "File Stream",
+                "File/DB倍率", "Stream/DB倍率");
         logger.info(header);
 
         for (String key : dbms.keySet()) {
-            double t1 = dbms.get(key);
-            double t2 = file.get(key);
-            String line = String.format("%-10s %-20.3f %-20.3f x%.2f",
-                    key, t1, t2, t2 / t1);
+            double dbTime = dbms.get(key);
+            double fileTime = file.get(key);
+            double streamTime = stream.get(key);
+            String line = String.format("%-10s %-20.3f %-20.3f %-20.3f x%.2f        x%.2f",
+                    key, dbTime, fileTime, streamTime,
+                    fileTime / dbTime, streamTime / dbTime);
             logger.info(line);
         }
         logger.info("==== DBMS vs File I/O Test Finished ====");
     }
 
 }
-
