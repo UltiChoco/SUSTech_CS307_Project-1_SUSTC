@@ -33,10 +33,6 @@ public class Importer {
         Importer importer = new Importer(url,user,password,schema,del,recipe_filepath,reviews_filepath,user_filepath);
         long start = System.currentTimeMillis();
         System.out.println("start timekeeping");
-        System.out.println("processing csv_file...");
-        importer.processCSV(recipe_filepath);
-        importer.processCSV(reviews_filepath);
-        System.out.println("finish");
 
         importer.copyToUsers();
         importer.copyToFollowers();

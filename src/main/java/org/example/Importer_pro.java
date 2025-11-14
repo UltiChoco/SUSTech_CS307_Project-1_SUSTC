@@ -36,30 +36,6 @@ public class Importer_pro {
         Importer_pro importer = new Importer_pro(url,user,password,schema,del,recipe_filepath,reviews_filepath,user_filepath);
         long start = System.currentTimeMillis();
         System.out.println("start timekeeping");
-        System.out.println("processing csv_file...");
-
-        // Parallelize CSV processing
-        ExecutorService csvExecutor = Executors.newFixedThreadPool(3);
-        csvExecutor.submit(() -> {
-            System.out.println("Processing recipe CSV...");
-            importer.processCSV(recipe_filepath, true); // Preprocess recipe file
-            System.out.println("Finished processing recipe CSV.");
-        });
-        csvExecutor.submit(() -> {
-            System.out.println("Processing reviews CSV...");
-            importer.processCSV(reviews_filepath, true); // Preprocess reviews file
-            System.out.println("Finished processing reviews CSV.");
-        });
-        csvExecutor.submit(() -> {
-            System.out.println("Processing user CSV...");
-            importer.processCSV(user_filepath, false); // Preprocess user file
-            System.out.println("Finished processing user CSV.");
-        });
-        csvExecutor.shutdown();
-        csvExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-
-        System.out.println("finish");
-
         importer.disableForeignKeyConstraints();
 
         // Truncate tables *before* creating the ExecutorService
