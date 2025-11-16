@@ -148,20 +148,22 @@ https://online.visual-paradigm.com
 ## 5. 任务三：数据导入
 
 - ### 导入流程概述
-  本次项目的数据导入使用 JDBC 连接数据库，并通过 PostgreSQL 的 `COPY` 方法实现高效的数据导入。整个导入流程包括**数据预处理**、**CSV 文件构建**以及**数据导入**三个主要阶段。
-    - 数据预处理阶段对原始的 `recipes.csv` 和 `reviews.csv` 文件进行格式整理和非法字符替换，确保数据的合法性和一致性
-    - 随后，通过 OpenCSV 库解析 CSV 文件内容，并根据数据库表结构构建对应的 CSV 文件
-    - 最后，使用 PostgreSQL 的 `COPY` 方法将数据批量导入数据库。总数据量约为 2200 万行，全过程平均导入时间为 235 秒
+  本次项目的数据导入使用 JDBC 连接数据库，并通过 PostgreSQL 的 `COPY` 方法实现高效的数据导入。整个导入流程包括数据预处理、CSV 文件构建以及数据导入三个主要阶段。数据预处理阶段对原始的 `recipes.csv` 和 `reviews.csv` 文件进行格式整理和非法字符替换，确保数据的合法性和一致性。随后，通过 OpenCSV 库解析 CSV 文件内容，并根据数据库表结构构建对应的 CSV 文件。最后，使用 PostgreSQL 的 `COPY` 方法将数据批量导入数据库。总数据量约为 2200 万行，全过程平均导入时间为 235 s。经过优化导入速度提升至37.518s。导入步骤如下：
+  - 在resource目录下的param.json中完善信息，信息包括：url、user、password、schema，和三份csv文件的路径
+  - 先运行DataPreprocessor.java，对文件和数据进行清洗和整理。
+  - 然后运行Importer.java（或Importer_pro.java，优化版本，导入速度更快，但是需要更大的内存）  
 
 - ### 导入代码结构
   导入代码主要由以下几部分组成：
   - **工具类**
     - **ConsoleProgressBar.java**：进度条类，用于在终端显示导入进度，实现导入流程的可视化。
     - **JsonParamReader.java**：JSON 参数读取类，用于从配置文件中读取数据库连接参数和文件路径，避免硬编码。
+    - **DataPreprocessor.java**：数据处理类，将数据处理与数据导入进行分离，避免多次处理数据。
   - **核心导入类**
     - **Copy.java**：封装 PostgreSQL 的 `CopyManager`，用于实现预构建 CSV 文件的批量导入。
     - **TableCreator.java**：用于创建数据库表结构。
     - **Importer.java**：包含主方法，实现数据预处理、表结构构建、CSV 数据构建以及数据导入的核心逻辑。
+    - **Importer_pro.java**:优化后的数据导入，效率更高，移除了进度条显示，并采用了不同的数据处理方法 。
 
 - ### 数据导入具体流程
   数据导入流程分为以下几个步骤：
@@ -173,83 +175,90 @@ https://online.visual-paradigm.com
 预处理后的数据重新写入文件，确保后续导入的顺利进行。
 
   - #### CSV 文件构建
-    使用 OpenCSV 库解析预处理后的 CSV 文件，并根据数据库表结构构建对应的 CSV 文件。具体流程如下：
+    使用 OpenCSV 库解析预处理后的 CSV 文件，并根据数据库表结构构建对应的 CSV 文件。具体流程如下（下表的records数以Importer_pro.java导入为准）：
 
     1. **`users` 表**
        - 从 `user.csv` 文件中读取用户信息。
        - 构建包含 `author_id`, `author_name`, `gender`, `age`, `following_cnt`, `follower_cnt` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
+       - 299_892
 
     2. **`follows` 表**
        - 从 `user.csv` 文件中解析用户关注关系。
        - 构建包含 `blogger_id` 和 `follower_id` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
+       - 1_591_836
 
     3. **`recipe` 表**
        - 从 `recipes.csv` 文件中读取食谱信息。
        - 构建包含 `recipe_id`, `author_id`, `dish_name`, `date_published`, `cook_time`, `prep_time`, `total_time`, `description`, `aggr_rating`, `review_cnt`, `yield`, `servings`, `calories`, `fat`, `saturated_fat`, `cholesterol`, `sodium`, `carbohydrate`, `fiber`, `sugar`, `protein` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
+       - 522_517
 
     4. **`favors_recipe` 表**
        - 从 `recipes.csv` 文件中解析用户收藏的食谱关系。
        - 构建包含 `author_id` 和 `recipe_id` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
+       - 2_588_000
 
     5. **`review` 表**
        - 从 `reviews.csv` 文件中读取评论信息。
        - 构建包含 `review_id`, `recipe_id`, `author_id`, `rating`, `review_text`, `date_submit`, `date_modify` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
+       - 1_401_963
 
     6. **`likes_review` 表**
        - 从 `reviews.csv` 文件中解析用户点赞评论的关系。
        - 构建包含 `author_id` 和 `review_id` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
+       - 5_402_271
 
     7. **`keyword` 表**
        - 从 `recipes.csv` 文件中提取关键词。
        - 构建包含 `keyword_name` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
+       - 314
 
     8. **`ingredient` 表**
        - 从 `recipes.csv` 文件中提取食材信息。
        - 构建包含 `ingredient_name` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
+       - 7_369
 
     9. **`instruction` 表**
        - 从 `recipes.csv` 文件中提取食谱步骤信息。
        - 构建包含 `recipe_id`, `step_no`, `instruction_text` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
+       - 3_467_823
 
     10. **`category` 表**
         - 从 `recipes.csv` 文件中提取分类信息。
         - 构建包含 `category_name` 的 CSV 文件。
         - 使用 `COPY` 方法将数据导入数据库。
+        - 311
 
     11. **`has_keyword` 表**
         - 从 `recipes.csv` 文件中解析食谱与关键词的关系。
         - 构建包含 `recipe_id` 和 `keyword_id` 的 CSV 文件。
         - 使用 `COPY` 方法将数据导入数据库。
+        - 2_529_132
 
     12. **`has_ingredient` 表**
         - 从 `recipes.csv` 文件中解析食谱与食材的关系。
         - 构建包含 `recipe_id` 和 `ingredient_id` 的 CSV 文件。
         - 使用 `COPY` 方法将数据导入数据库。
+        - 4_014_727
 
     13. **`has_category` 表**
         - 从 `recipes.csv` 文件中解析食谱与分类的关系。
         - 构建包含 `recipe_id` 和 `category_id` 的 CSV 文件。
         - 使用 `COPY` 方法将数据导入数据库。
+        - 521_766
 
   - #### 数据导入
     使用 PostgreSQL 的 `COPY` 方法将构建好的 CSV 文件批量导入数据库。`COPY` 方法支持高效的数据导入，能够显著提升导入性能。在导入过程中，通过进度条实时显示导入进度，确保导入过程的可视化。
 
-- ### 性能优化
-为了提升数据导入性能，采取了以下优化措施：
-- **预处理数据**：通过预处理阶段，确保数据格式一致，减少导入时的错误处理。
-- **批量导入**：使用 PostgreSQL 的 `COPY` 方法进行批量导入，减少单条插入的开销。
-
-
-## 6. 任务四：比较DBMS、File I/O、File Stream（任务四bonus）
+## 6. 任务四：比较DBMS与文件I/O
 
 - ### 测试环境
     - **硬件配置**
@@ -551,11 +560,11 @@ https://online.visual-paradigm.com
     - 随着查询总量的增加，QPS 稳定上升
     - 测试用电脑只有20 threads。当线程数过高（1000）时，CPU 会频繁切换线程，因上下文切换和调度开销导致吞吐略微下降。实验使用超额线程数是为了体现高并发的稳定性。
 
-## 8.任务六：数据导入加速（任务三bonus）
+## 8. 任务六 ：导入方法对比与导入代码优化（任务三进阶）
 - ### 测试环境
     - **硬件配置**
     - *CPU型号*：13th Gen Intel® Core™ i7-13650HX × 20
-    - *内存大小*：24.0 GiB
+    - *内存大小*：24.0 GiB
   - **软件环境**
     - *DBMS*：PostgreSQL 17.4 on x86_64-windows
     - *JDK*：OpenJDK 11（由 `pom.xml` 指定）
@@ -568,17 +577,22 @@ https://online.visual-paradigm.com
 - ### 多种导入方法的速度对比
     - **测试代码与运行结果**
     测试代码为InsertPerformanceTester.java,代码中对比了使用copy方法，preparestatement和普通statement在不同的batchsize下的运行速度，运行结果如下：
-      - Copy插入耗时: 12662 ms
-      - PreparedStatement(batchSize=500)插入耗时: 42137 ms
-      - PreparedStatement(batchSize=1000)插入耗时: 42563 ms
-      - PreparedStatement(batchSize=2000)插入耗时: 41681 ms
-      - PreparedStatement(batchSize=5000)插入耗时: 41123 ms
-      - PreparedStatement(batchSize=10000)插入耗时: 39019 ms
-      - 普通Statement(batchSize=500)插入耗时: 70811 ms
-      - 普通Statement(batchSize=1000)插入耗时: 72270 ms
-      - 普通Statement(batchSize=2000)插入耗时: 70363 ms
-      - 普通Statement(batchSize=5000)插入耗时: 58789 ms
-      - 普通Statement(batchSize=10000)插入耗时: 52705 ms
+
+    ###### 表 3. 不同导入方法耗时对比（单位：ms）
+
+    | 导入方法                | batchSize | 耗时（ms） |
+    |-------------------------|-----------|------------|
+    | COPY 方法               | -         | 12662      |
+    | PreparedStatement       | 500       | 42137      |
+    | PreparedStatement       | 1000      | 42563      |
+    | PreparedStatement       | 2000      | 41681      |
+    | PreparedStatement       | 5000      | 41123      |
+    | PreparedStatement       | 10000     | 39019      |
+    | 普通 Statement          | 500       | 70811      |
+    | 普通 Statement          | 1000      | 72270      |
+    | 普通 Statement          | 2000      | 70363      |
+    | 普通 Statement          | 5000      | 58789      |
+    | 普通 Statement          | 10000     | 52705      |
 
 - ### 运行结果分析
   从不同导入方法的耗时数据可以得出以下结论：
@@ -607,12 +621,17 @@ vv
   - 在先前优化的基础上，采用并行处理的策略进行文件预处理和导入数据构建，进一步提高了导入效率。
 
 - ### 优化结果
-  在依次进行上述三个优化后的导入速度分别为：**129.588s、63.802s、37.518s**。结论如下：
+  ###### 表 4. 导入优化效果对比（单位：s）
+
+  | 优化阶段                 | 耗时（s） | 相比上一阶段提升 | 相比初始状态提升 |
+  |--------------------------|-----------|------------------|------------------|
+  | 初始状态（未优化）       | 286.324   | -                | -                |
+  | 关闭外键约束             | 129.588   | 54.7%            | 54.7%            |
+  | 合并导入方法             | 63.802    | 51.0%            | 77.7%            |
+  | 引入并行处理             | 37.518    | 41.2%            | 86.9%            |
+
+
+  结论如下：
    - 关闭外键约束后，导入时间从286.324s降至129.588s，耗时减少约54.7%。外键约束会在每条记录插入时触发关联校验（如检查引用表是否存在对应记录），大数据量场景下会产生大量额外的磁盘I/O和锁竞争，关闭约束可暂时规避这些开销，待数据完整导入后再批量重建约束，显著提升导入效率。
    - 合并导入方法后，时间进一步缩短至63.802s，相比首次优化再降约51%。通过单次遍历原始CSV文件同时构建多个关联表数据，避免了13次重复读取文件的I/O操作（文件I/O是性能瓶颈），同时减少事务提交次数（多次提交会增加日志写入和锁开销），大幅降低了循环和I/O的冗余消耗。 
    - 引入并行处理后，导入时间最终降至37.518s，相比未优化前总耗时减少约86.9%。通过多线程并行处理文件预处理（如不同CSV文件的解析可分配至不同线程）和数据构建，充分利用了多核CPU资源，将串行任务转化为并行流水作业，进一步压缩了整体耗时。
-
-
-
-
-
