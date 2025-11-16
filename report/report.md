@@ -1,7 +1,4 @@
 # SUSTech CS307 Project Part I — Report
-> Team: <12410148> & <12410303>    
-> Date: 2025-11-8  
-> Course: CS307 Fall 2025
 
 [TOC]
 
@@ -12,7 +9,7 @@
 
 ## 2. 项目背景
 - ### 项目介绍： 
-根据课程提供的SUSTC食谱数据集设计标准数据库管理方式。完成数据库设计、数据快速导入、比较DBMS和文件I/O的性能。
+根据课程提供的SUSTC食谱数据集设计标准数据库管理方式。完成数据库设计、数据快速导入、比较DBMS和文件I/O的性能及其他扩展内容。
 - ### 原始文件：
   `recipes.csv`, `user.csv`, `reviews.csv`
 
@@ -51,7 +48,7 @@ https://online.visual-paradigm.com
   - `following_cnt`：派生属性，由 `follows` 表计算（该用户关注的人数）  
   - `follower_cnt`：派生属性，由 `follows` 表计算（关注该用户的人数）  
   #### follows表
-   **说明**：表示用户之间的关注关系，自连接实现。
+   **说明**：表示用户之间的关注关系，自连接实现（多对多）
   **主键**：`(blogger_id, follower_id)`  
   **外键**：  
   - `blogger_id` → `users(author_id)` （被关注者）  
@@ -151,7 +148,10 @@ https://online.visual-paradigm.com
 ## 5. 任务三：数据导入
 
 - ### 导入流程概述
-  本次项目的数据导入使用 JDBC 连接数据库，并通过 PostgreSQL 的 `COPY` 方法实现高效的数据导入。整个导入流程包括数据预处理、CSV 文件构建以及数据导入三个主要阶段。数据预处理阶段对原始的 `recipes.csv` 和 `reviews.csv` 文件进行格式整理和非法字符替换，确保数据的合法性和一致性。随后，通过 OpenCSV 库解析 CSV 文件内容，并根据数据库表结构构建对应的 CSV 文件。最后，使用 PostgreSQL 的 `COPY` 方法将数据批量导入数据库。总数据量约为 2200 万行，全过程平均导入时间为 235 秒。
+  本次项目的数据导入使用 JDBC 连接数据库，并通过 PostgreSQL 的 `COPY` 方法实现高效的数据导入。整个导入流程包括**数据预处理**、**CSV 文件构建**以及**数据导入**三个主要阶段。
+    - 数据预处理阶段对原始的 `recipes.csv` 和 `reviews.csv` 文件进行格式整理和非法字符替换，确保数据的合法性和一致性
+    - 随后，通过 OpenCSV 库解析 CSV 文件内容，并根据数据库表结构构建对应的 CSV 文件
+    - 最后，使用 PostgreSQL 的 `COPY` 方法将数据批量导入数据库。总数据量约为 2200 万行，全过程平均导入时间为 235 秒
 
 - ### 导入代码结构
   导入代码主要由以下几部分组成：
@@ -249,9 +249,7 @@ https://online.visual-paradigm.com
 - **批量导入**：使用 PostgreSQL 的 `COPY` 方法进行批量导入，减少单条插入的开销。
 
 
-
-# SUSTech CS307 Project Part I — Report
-## 6. 任务四：比较DBMS与文件I/O
+## 6. 任务四：比较DBMS、File I/O、File Stream（任务四bonus）
 
 - ### 测试环境
     - **硬件配置**
@@ -304,7 +302,7 @@ https://online.visual-paradigm.com
 
   #### （2）File I/O 数据组织方式
   采用`recipes.csv`原始文件作为测试文件，所有 File I/O 的写操作最终写入临时文件并立即删除，以保持文件不被污染。由于文本文件缺乏索引，因此四类操作必须按顺序扫描或重写实现：
-    - **SELECT**：（顺序扫描）
+    - **SELECT：顺序扫描**
         - 逐行读取 CSV
         - 查找以 recipe_id, 开头的目标行
       ```java
@@ -313,24 +311,77 @@ https://online.visual-paradigm.com
       }
       ```
 
-    - **INSERT**：（追加写入文件末尾）
+    - **INSERT：追加写入文件末尾**
         - 使用 FileWriter(CSV_PATH, true)
         - 将新行直接追加，不读取原文件
       ```java
       bw.write("999999,TempDish_xxx,1,2025-11-12\n");
       ```
 
-    - **UPDATE**：（读入全部 → 修改 → 写回临时文件）
+    - **UPDATE：（读入全部 → 修改 → 写回临时文件）**
         - 读取完整文件到 List
         - 找到匹配行时用字符串替换模拟更新
         - 将全部内容写回临时文件
         - 最终删除临时文件，保持原文件不变
 
-    - **DELETE**：（过滤行 → 写回临时文件）
+    - **DELETE：（过滤行 → 写回临时文件）**
         - 逐行读取原文件
         - 跳过匹配行
         - 将其余内容写入临时文件
         - 删除临时文件
+  #### （3）File Stream 数据组织方式  
+  File Stream 方式基于 Java NIO (`java.nio.file.Files`) 对 `recipes.csv` 执行**流式读取、过滤、映射与写入**。  
+与传统 File I/O 使用 `BufferedReader` / `BufferedWriter` 不同，NIO 的流式处理具备以下特点：
+
+  - 使用 **惰性加载（lazy evaluation）** 的 `Files.lines()`，按需逐行读取
+  - 可用函数式操作（`filter`、`map`、`collect`）实现更高层的行处理
+  - 仍需通过写入临时文件来执行 UPDATE/DELETE，保持原始 CSV 不被修改
+
+  本实验同样保持所有写操作写入临时文件并在测试后删除，确保原始数据文件不被污染。
+
+
+   -  **SELECT：流式过滤查找**
+通过 `Files.lines(Path)` 生成一个 Stream，每行以惰性方式读取；使用 `filter` 过滤目标行并在找到后立即终止：
+
+     ```java
+     Files.lines(csvPath)
+         .filter(line -> line.startsWith(targetPrefix))
+         .findFirst();  // 找到第一条后即停止
+     ```
+  - **UPDATE：**（流式 map → 写回临时文件）
+    - 使用 `Files.lines()` 以 Stream 方式读取全部行  
+    - `map()`：当遇到目标行时替换字段模拟更新，其余行保持不变  
+    - `collect()` 将更新后的所有行收集到内存  
+    - 使用 `Files.write()` 将完整内容写入临时文件  
+    - 最终删除临时文件，保持原 CSV 不变
+
+    ```java
+    List<String> updatedLines = Files.lines(csvPath)
+        .map(line -> line.startsWith(targetPrefix)
+             ? line.replaceFirst(",", "_updated,")
+             : line)
+        .collect(Collectors.toList());
+
+    Files.write(tempPath, updatedLines);
+    Files.deleteIfExists(tempPath);
+    ```
+
+  - **DELETE：**（流式 filter → 写回临时文件）
+    - 使用 `Files.lines()` 以 Stream 方式读取原文件  
+    - `filter()` 去除目标行  
+    - 将剩余行通过 `collect()` 收集  
+    - 写入临时文件后删除临时文件  
+    - 不影响原始 CSV 文件内容
+
+    ```java
+    List<String> remainingLines = Files.lines(csvPath)
+        .filter(line -> !line.startsWith(targetPrefix))
+        .collect(Collectors.toList());
+
+    Files.write(tempPath, remainingLines);
+    Files.deleteIfExists(tempPath);
+    ```
+
 
 - ### 测试代码流程
   测试程序主体位于 `DBMSvsFileIO.java`，以下介绍代码流程框架：
@@ -500,7 +551,7 @@ https://online.visual-paradigm.com
     - 随着查询总量的增加，QPS 稳定上升
     - 测试用电脑只有20 threads。当线程数过高（1000）时，CPU 会频繁切换线程，因上下文切换和调度开销导致吞吐略微下降。实验使用超额线程数是为了体现高并发的稳定性。
 
-## 8.任务六（任务三进阶）
+## 8.任务六：数据导入加速（任务三bonus）
 - ### 测试环境
     - **硬件配置**
     - *CPU型号*：13th Gen Intel® Core™ i7-13650HX × 20
@@ -539,7 +590,7 @@ https://online.visual-paradigm.com
     在相同 batchSize 下，PreparedStatement 的插入耗时比普通 Statement 低 30%-40%。原因在于：
     - PreparedStatement 对 SQL 语句进行预编译，避免了普通 Statement 每次执行时的语法解析和优化开销；
     - 预编译后的语句可复用，减少了数据库端的处理压力。
-
+vv
   3. **batchSize 对性能的影响**  
     - 对于 PreparedStatement 和普通 Statement，随着 batchSize 增大（从 500 到 10000），耗时总体呈下降趋势。较大的 batchSize 减少了与数据库的交互次数，降低了网络通信和事务提交的开销。
     - 但 batchSize 并非越大越好，当达到 10000 时，性能提升逐渐趋于平缓。这是因为过大的批次会增加内存占用和单次传输的负载，可能导致数据库端处理延迟增加。
