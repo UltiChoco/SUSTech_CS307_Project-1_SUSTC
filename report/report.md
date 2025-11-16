@@ -258,7 +258,7 @@ https://online.visual-paradigm.com
   - #### 数据导入
     使用 PostgreSQL 的 `COPY` 方法将构建好的 CSV 文件批量导入数据库。`COPY` 方法支持高效的数据导入，能够显著提升导入性能。在导入过程中，通过进度条实时显示导入进度，确保导入过程的可视化。
 
-## 6. 任务四：比较DBMS与文件I/O
+## 6. 任务四：比较DBMS, File I/O, File Stream(任务四bonus)
 
 - ### 测试环境
     - **硬件配置**
