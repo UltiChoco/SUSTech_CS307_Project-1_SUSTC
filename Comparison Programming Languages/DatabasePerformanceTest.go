@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"math/rand"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -14,20 +13,22 @@ import (
 
 // 数据库配置
 const (
-	DB_URL       = "host=localhost port=5432 user=postgres password=Dr141592 dbname=project sslmode=disable"
-	SCHEMA_NAME  = "test_schema"
-	TABLE_NAME   = SCHEMA_NAME + ".test_perf"
-	TOTAL_ROWS   = 500000
-	BATCH_SIZE   = 10000
-	CONCURRENT   = 10
-	SAMPLE_SIZE  = 1000
-	CHARACTERS   = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	DB_URL      = "host=127.0.0.1 port=5432 user=postgres password=676767 dbname=sustc_db sslmode=disable"
+	SCHEMA_NAME = "test_schema"
+	TABLE_NAME  = SCHEMA_NAME + ".test_perf"
+
+	TOTAL_ROWS  = 500000
+	BATCH_SIZE  = 10000
+	CONCURRENT  = 10
+	SAMPLE_SIZE = 1000
+
+	CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 )
 
 var rnd *rand.Rand
+var globalDB *sql.DB // 全局连接池
 
 func init() {
-	// 初始化随机数生成器
 	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
@@ -83,21 +84,20 @@ func insertLargeData(db *sql.DB, totalRows, batchSize int) error {
 	fmt.Printf("开始插入 %d 条数据...\n", totalRows)
 	totalBatches := (totalRows + batchSize - 1) / batchSize
 
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	stmt, err := tx.Prepare(fmt.Sprintf(
-		"INSERT INTO %s (uid, content, value) VALUES ($1, $2, $3)",
-		TABLE_NAME))
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
 	for batch := 0; batch < totalBatches; batch++ {
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+
+		stmt, err := tx.Prepare(fmt.Sprintf(
+			"INSERT INTO %s (uid, content, value) VALUES ($1, $2, $3)",
+			TABLE_NAME))
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+
 		currentBatchSize := batchSize
 		if remaining := totalRows - batch*batchSize; remaining < batchSize {
 			currentBatchSize = remaining
@@ -108,25 +108,15 @@ func insertLargeData(db *sql.DB, totalRows, batchSize int) error {
 			content := generateRandomStr(100)
 			value := rnd.Intn(1000) + 1
 
-			_, err := stmt.Exec(uid, content, value)
-			if err != nil {
+			if _, err := stmt.Exec(uid, content, value); err != nil {
+				stmt.Close()
+				_ = tx.Rollback()
 				return err
 			}
 		}
 
+		stmt.Close()
 		if err := tx.Commit(); err != nil {
-			return err
-		}
-
-		// 为下一批次准备新事务
-		tx, err = db.Begin()
-		if err != nil {
-			return err
-		}
-		stmt, err = tx.Prepare(fmt.Sprintf(
-			"INSERT INTO %s (uid, content, value) VALUES ($1, $2, $3)",
-			TABLE_NAME))
-		if err != nil {
 			return err
 		}
 
@@ -136,8 +126,6 @@ func insertLargeData(db *sql.DB, totalRows, batchSize int) error {
 		}
 	}
 
-	// 提交最后一个事务
-	tx.Commit()
 	return nil
 }
 
@@ -158,6 +146,8 @@ func testSelectPerformance(db *sql.DB) error {
 		return nil
 	}
 
+	startTotal := time.Now()
+
 	// 单条主键查询
 	var totalSingle int64
 	stmt, err := db.Prepare(fmt.Sprintf("SELECT * FROM %s WHERE id = $1", TABLE_NAME))
@@ -173,7 +163,7 @@ func testSelectPerformance(db *sql.DB) error {
 		if err != nil {
 			return err
 		}
-		rows.Close() // 立即关闭结果集
+		rows.Close()
 		totalSingle += time.Since(start).Nanoseconds()
 	}
 	avgSingle := float64(totalSingle) / 1e9 / float64(SAMPLE_SIZE)
@@ -220,6 +210,8 @@ func testSelectPerformance(db *sql.DB) error {
 	fmt.Printf("  条件查询（%d次平均）: %.6f秒/次\n", SAMPLE_SIZE, avgCond)
 	fmt.Printf("  范围查询（1000条结果）: %.6f秒\n", rangeSec)
 
+	selectTime := time.Since(startTotal).Seconds()
+	fmt.Printf("查询测试总耗时: %.6f秒\n", selectTime)
 	return nil
 }
 
@@ -233,6 +225,8 @@ func testUpdatePerformance(db *sql.DB) error {
 		return nil
 	}
 
+	startTotal := time.Now()
+
 	var totalTime int64
 	stmt, err := db.Prepare(fmt.Sprintf("UPDATE %s SET value = $1 WHERE id = $2", TABLE_NAME))
 	if err != nil {
@@ -245,8 +239,7 @@ func testUpdatePerformance(db *sql.DB) error {
 		newValue := rnd.Intn(1000) + 1
 
 		start := time.Now()
-		_, err := stmt.Exec(newValue, targetId)
-		if err != nil {
+		if _, err := stmt.Exec(newValue, targetId); err != nil {
 			return err
 		}
 		totalTime += time.Since(start).Nanoseconds()
@@ -254,6 +247,8 @@ func testUpdatePerformance(db *sql.DB) error {
 
 	avgUpdate := float64(totalTime) / 1e9 / float64(SAMPLE_SIZE)
 	fmt.Printf("更新性能（%d次平均）: %.6f秒/次\n", SAMPLE_SIZE, avgUpdate)
+	updateTotal := time.Since(startTotal).Seconds()
+	fmt.Printf("更新测试总耗时: %.6f秒\n", updateTotal)
 	return nil
 }
 
@@ -288,6 +283,8 @@ func testDeletePerformance(db *sql.DB) error {
 		return nil
 	}
 
+	startTotal := time.Now()
+
 	// 执行删除
 	var totalTime int64
 	deleteStmt, err := db.Prepare(fmt.Sprintf("DELETE FROM %s WHERE id = $1", TABLE_NAME))
@@ -298,8 +295,7 @@ func testDeletePerformance(db *sql.DB) error {
 
 	for _, row := range backup {
 		start := time.Now()
-		_, err := deleteStmt.Exec(row.id)
-		if err != nil {
+		if _, err := deleteStmt.Exec(row.id); err != nil {
 			return err
 		}
 		totalTime += time.Since(start).Nanoseconds()
@@ -310,29 +306,31 @@ func testDeletePerformance(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
 
 	insertStmt, err := tx.Prepare(fmt.Sprintf(
 		"INSERT INTO %s (id, uid, content, value) VALUES ($1, $2, $3, $4)",
 		TABLE_NAME))
 	if err != nil {
+		_ = tx.Rollback()
 		return err
 	}
-	defer insertStmt.Close()
 
 	for _, row := range backup {
-		_, err := insertStmt.Exec(row.id, row.uid, row.content, row.value)
-		if err != nil {
+		if _, err := insertStmt.Exec(row.id, row.uid, row.content, row.value); err != nil {
+			insertStmt.Close()
+			_ = tx.Rollback()
 			return err
 		}
 	}
-
+	insertStmt.Close()
 	if err := tx.Commit(); err != nil {
 		return err
 	}
 
 	avgDelete := float64(totalTime) / 1e9 / float64(SAMPLE_SIZE)
 	fmt.Printf("删除性能（%d次平均）: %.6f秒/次\n", SAMPLE_SIZE, avgDelete)
+	deleteTotal := time.Since(startTotal).Seconds()
+	fmt.Printf("删除测试总耗时: %.6f秒\n", deleteTotal)
 	return nil
 }
 
@@ -341,10 +339,10 @@ type taskResult struct {
 	id     int
 	action string
 	time   float64
-	error  string
+	err    string
 }
 
-// 处理查询操作
+// 处理查询操作（并发用）
 func handleSelect(db *sql.DB) error {
 	maxId, err := getMaxId(db)
 	if err != nil || maxId <= 0 {
@@ -366,7 +364,7 @@ func handleSelect(db *sql.DB) error {
 	return nil
 }
 
-// 处理更新操作
+// 处理更新操作（并发用）
 func handleUpdate(db *sql.DB) error {
 	maxId, err := getMaxId(db)
 	if err != nil || maxId <= 0 {
@@ -386,7 +384,7 @@ func handleUpdate(db *sql.DB) error {
 	return err
 }
 
-// 处理删除恢复操作
+// 处理删除恢复操作（并发用）
 func handleDeleteRestore(db *sql.DB) error {
 	var id int
 	var uid, content string
@@ -399,30 +397,28 @@ func handleDeleteRestore(db *sql.DB) error {
 		return err
 	}
 
-	// 删除
-	_, err = db.Exec(fmt.Sprintf("DELETE FROM %s WHERE id = $1", TABLE_NAME), id)
-	if err != nil {
+	if _, err = db.Exec(fmt.Sprintf("DELETE FROM %s WHERE id = $1", TABLE_NAME), id); err != nil {
 		return err
 	}
 
-	// 恢复
-	_, err = db.Exec(fmt.Sprintf(
+	if _, err = db.Exec(fmt.Sprintf(
 		"INSERT INTO %s (id, uid, content, value) VALUES ($1, $2, $3, $4)",
-		TABLE_NAME), id, uid, content, value)
-	return err
+		TABLE_NAME), id, uid, content, value); err != nil {
+		return err
+	}
+	return nil
 }
 
-// 并发任务执行函数
+// 并发任务执行函数（真正并行：使用全局连接池）
 func concurrentTask(id int, results chan<- taskResult) {
 	result := taskResult{id: id}
-	db, err := sql.Open("postgres", DB_URL)
-	if err != nil {
+	db := globalDB
+	if db == nil {
 		result.action = "error"
-		result.error = err.Error()
+		result.err = "globalDB is nil"
 		results <- result
 		return
 	}
-	defer db.Close()
 
 	// 随机选择操作类型
 	var action string
@@ -449,7 +445,7 @@ func concurrentTask(id int, results chan<- taskResult) {
 
 	if execErr != nil {
 		result.action = "error"
-		result.error = execErr.Error()
+		result.err = execErr.Error()
 	} else {
 		result.action = action
 		result.time = time.Since(start).Seconds()
@@ -467,19 +463,18 @@ func testConcurrentPerformance() {
 	results := make(chan taskResult, totalOps)
 	var wg sync.WaitGroup
 
-	// 启动工作池
+	// 工作者池
 	pool := make(chan struct{}, CONCURRENT)
 	for i := 0; i < totalOps; i++ {
-		pool <- struct{}{}
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			defer func() { <-pool }()
+			pool <- struct{}{}
 			concurrentTask(id, results)
+			<-pool
 		}(i)
 	}
 
-	// 等待所有任务完成并关闭通道
 	go func() {
 		wg.Wait()
 		close(results)
@@ -487,16 +482,16 @@ func testConcurrentPerformance() {
 
 	// 收集结果
 	success := 0
-	var errors []string
 	actionTimes := map[string][]float64{
 		"select":         {},
 		"update":         {},
 		"delete_restore": {},
 	}
+	var errors []string
 
 	for res := range results {
 		if res.action == "error" {
-			errors = append(errors, res.error)
+			errors = append(errors, res.err)
 		} else {
 			success++
 			actionTimes[res.action] = append(actionTimes[res.action], res.time)
@@ -526,25 +521,28 @@ func testConcurrentPerformance() {
 	fmt.Printf("    查询: %.6f秒/次\n", avgTimes["select"])
 	fmt.Printf("    更新: %.6f秒/次\n", avgTimes["update"])
 	fmt.Printf("    删除恢复: %.6f秒/次\n", avgTimes["delete_restore"])
-
 	if len(errors) > 0 {
 		fmt.Printf("  错误示例: %s\n", errors[0])
 	}
 }
 
 func main() {
-	// 连接数据库
+	// 连接数据库 + 初始化连接池
 	db, err := sql.Open("postgres", DB_URL)
 	if err != nil {
 		fmt.Printf("无法连接数据库: %v\n", err)
-		os.Exit(1)
+		return
 	}
 	defer db.Close()
+	globalDB = db
 
-	// 测试连接
+	db.SetMaxOpenConns(50)
+	db.SetMaxIdleConns(50)
+	db.SetConnMaxLifetime(0)
+
 	if err := db.Ping(); err != nil {
 		fmt.Printf("数据库连接失败: %v\n", err)
-		os.Exit(1)
+		return
 	}
 
 	// 1. 初始化Schema和表
@@ -570,33 +568,24 @@ func main() {
 
 	// 3. 测试查询性能
 	fmt.Println("\n===== 3. 测试查询性能 =====")
-	selectStart := time.Now()
 	if err := testSelectPerformance(db); err != nil {
 		fmt.Printf("查询测试失败: %v\n", err)
 		return
 	}
-	selectTime := time.Since(selectStart).Seconds()
-	fmt.Printf("查询测试总耗时: %.6f秒\n", selectTime)
 
 	// 4. 测试更新性能
 	fmt.Println("\n===== 4. 测试更新性能 =====")
-	updateStart := time.Now()
 	if err := testUpdatePerformance(db); err != nil {
 		fmt.Printf("更新测试失败: %v\n", err)
 		return
 	}
-	updateTime := time.Since(updateStart).Seconds()
-	fmt.Printf("更新测试总耗时: %.6f秒\n", updateTime)
 
 	// 5. 测试删除性能
 	fmt.Println("\n===== 5. 测试删除性能 =====")
-	deleteStart := time.Now()
 	if err := testDeletePerformance(db); err != nil {
 		fmt.Printf("删除测试失败: %v\n", err)
 		return
 	}
-	deleteTime := time.Since(deleteStart).Seconds()
-	fmt.Printf("删除测试总耗时: %.6f秒\n", deleteTime)
 
 	// 6. 测试并发性能
 	fmt.Println("\n===== 6. 测试并发性能 =====")

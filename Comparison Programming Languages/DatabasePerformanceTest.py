@@ -8,9 +8,9 @@ from psycopg2.extras import execute_batch
 import concurrent.futures
 
 DB_CONFIG = {
-    "dbname": "project",
+    "dbname": "sustc_db",
     "user": "postgres",
-    "password": "Dr141592",
+    "password": "676767",
     "host": "localhost",
     "port": "5432"
 }
@@ -169,7 +169,15 @@ def concurrent_operation(operation_id):
         conn.autocommit = True
         cursor = conn.cursor()
 
-        action = random.choice(["select", "update", "delete_restore"])
+        # 30% select, 30% update, 40% delete_restore
+        p = random.random()
+        if p < 0.3:
+            action = "select"
+        elif p < 0.6:
+            action = "update"
+        else:
+            action = "delete_restore"
+
         start = time.perf_counter()
 
         if action == "select":
@@ -177,6 +185,7 @@ def concurrent_operation(operation_id):
             max_id = cursor.fetchone()[0]
             if max_id:
                 cursor.execute(f"SELECT * FROM {TABLE_NAME} WHERE id = %s", (random.randint(1, max_id),))
+                cursor.fetchone()     # ⭐ fetch result! 重要！
 
         elif action == "update":
             cursor.execute(f"SELECT MAX(id) FROM {TABLE_NAME}")
@@ -192,16 +201,17 @@ def concurrent_operation(operation_id):
             row = cursor.fetchone()
             if row:
                 cursor.execute(f"DELETE FROM {TABLE_NAME} WHERE id = %s", (row[0],))
-                cursor.execute(f"""
-                    INSERT INTO {TABLE_NAME} (id, uid, content, value)
-                    VALUES (%s, %s, %s, %s)
-                """, row)
+                cursor.execute(
+                    f"INSERT INTO {TABLE_NAME} (id, uid, content, value) VALUES (%s, %s, %s, %s)",
+                    row
+                )
 
         end = time.perf_counter()
         return (operation_id, action, end - start)
 
     except Exception as e:
         return (operation_id, "error", str(e))
+
     finally:
         if cursor:
             cursor.close()

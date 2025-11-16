@@ -1,477 +1,429 @@
-package org.example.compare_test;
+package org.example;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
 public class DatabasePerformanceTest {
-    // 数据库配置
-    private static final String DB_URL = "jdbc:postgresql://localhost:5432/project";
+
+    private static final String DB_URL = "jdbc:postgresql://localhost:5432/sustc_db";
     private static final String USER = "postgres";
-    private static final String PASSWORD = "Dr141592";
+    private static final String PASSWORD = "676767";
+
     private static final String SCHEMA_NAME = "test_schema";
     private static final String TABLE_NAME = SCHEMA_NAME + ".test_perf";
+
     private static final int TOTAL_ROWS = 500000;
     private static final int BATCH_SIZE = 10000;
-    private static final int CONCURRENT_WORKERS = 10;
     private static final int SAMPLE_SIZE = 1000;
 
-    // 随机字符串生成器
-    private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    private static final int CONCURRENT_WORKERS = 10;
+    private static final int TOTAL_TASKS = 1000;
+
     private static final Random random = new Random();
+    private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    // 全局 Hikari 连接池
+    private static HikariDataSource dataSource;
 
     public static void main(String[] args) {
-        Connection conn = null;
         try {
-            // 初始化连接
-            conn = DriverManager.getConnection(DB_URL, USER, PASSWORD);
-            conn.setAutoCommit(true);
+            initConnectionPool();
 
-            // 1. 初始化Schema和表
-            System.out.println("\n===== 1. 初始化Schema和表 =====");
-            long initStart = System.nanoTime();
-            initSchemaAndTable(conn);
-            long initEnd = System.nanoTime();
-            double initTime = (initEnd - initStart) / 1e9;
-            System.out.printf("初始化耗时: %.6f秒%n", initTime);
+            try (Connection conn = dataSource.getConnection()) {
+                conn.setAutoCommit(true);
 
-            // 2. 插入大量数据
-            System.out.println("\n===== 2. 插入大量数据 =====");
-            long insertStart = System.nanoTime();
-            insertLargeData(conn, TOTAL_ROWS, BATCH_SIZE);
-            long insertEnd = System.nanoTime();
-            double insertTime = (insertEnd - insertStart) / 1e9;
-            System.out.printf("插入%d万条数据总耗时: %.6f秒，平均每条: %.8f秒%n",
-                    TOTAL_ROWS / 10000, insertTime, insertTime / TOTAL_ROWS);
+                // =========================================
+                // 1. 初始化 Schema、表
+                // =========================================
+                System.out.println("\n===== 1. 初始化Schema和表 =====");
+                long t1 = System.nanoTime();
+                initSchemaAndTable(conn);
+                System.out.printf("初始化耗时: %.6f秒%n", (System.nanoTime() - t1) / 1e9);
 
-            // 3. 测试查询性能
-            System.out.println("\n===== 3. 测试查询性能 =====");
-            long selectStart = System.nanoTime();
-            testSelectPerformance(conn);
-            long selectEnd = System.nanoTime();
-            double selectTime = (selectEnd - selectStart) / 1e9;
-            System.out.printf("查询测试总耗时: %.6f秒%n", selectTime);
+                // =========================================
+                // 2. 插入大量数据
+                // =========================================
+                System.out.println("\n===== 2. 插入大量数据 =====");
+                long t2 = System.nanoTime();
+                insertLargeData(conn, TOTAL_ROWS, BATCH_SIZE);
+                System.out.printf("插入耗时: %.6f秒%n", (System.nanoTime() - t2) / 1e9);
 
-            // 4. 测试更新性能
-            System.out.println("\n===== 4. 测试更新性能 =====");
-            long updateStart = System.nanoTime();
-            testUpdatePerformance(conn);
-            long updateEnd = System.nanoTime();
-            double updateTime = (updateEnd - updateStart) / 1e9;
-            System.out.printf("更新测试总耗时: %.6f秒%n", updateTime);
+                // =========================================
+                // 3. 查询性能
+                // =========================================
+                System.out.println("\n===== 3. 测试查询性能 =====");
+                long t3 = System.nanoTime();
+                testSelectPerformance(conn);
+                System.out.printf("查询测试总耗时: %.6f秒%n", (System.nanoTime() - t3) / 1e9);
 
-            // 5. 测试删除性能
-            System.out.println("\n===== 5. 测试删除性能 =====");
-            long deleteStart = System.nanoTime();
-            testDeletePerformance(conn);
-            long deleteEnd = System.nanoTime();
-            double deleteTime = (deleteEnd - deleteStart) / 1e9;
-            System.out.printf("删除测试总耗时: %.6f秒%n", deleteTime);
+                // =========================================
+                // 4. 更新性能
+                // =========================================
+                System.out.println("\n===== 4. 测试更新性能 =====");
+                long t4 = System.nanoTime();
+                testUpdatePerformance(conn);
+                System.out.printf("更新测试总耗时: %.6f秒%n", (System.nanoTime() - t4) / 1e9);
 
-            // 6. 测试并发性能
-            System.out.println("\n===== 6. 测试并发性能 =====");
-            testConcurrentPerformance();
+                // =========================================
+                // 5. 删除性能
+                // =========================================
+                System.out.println("\n===== 5. 测试删除性能 =====");
+                long t5 = System.nanoTime();
+                testDeletePerformance(conn);
+                System.out.printf("删除测试总耗时: %.6f秒%n", (System.nanoTime() - t5) / 1e9);
 
-        } catch (SQLException e) {
+                // =========================================
+                // 6. 并发性能（已启用连接池）
+                // =========================================
+                System.out.println("\n===== 6. 测试并发性能 =====");
+                testConcurrentPerformance();
+            }
+
+        } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            if (conn != null) {
-                try {
-                    conn.close();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
+            if (dataSource != null) {
+                dataSource.close();
             }
             System.out.println("\n所有测试完成，资源已释放");
         }
     }
 
-    // 生成随机字符串
-    private static String generateRandomStr(int length) {
-        StringBuilder sb = new StringBuilder(length);
-        for (int i = 0; i < length; i++) {
+    // ==========================================================
+    //  初始化 HikariCP 连接池
+    // ==========================================================
+    private static void initConnectionPool() {
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(DB_URL);
+        config.setUsername(USER);
+        config.setPassword(PASSWORD);
+
+        config.setMaximumPoolSize(50);
+        config.setMinimumIdle(10);
+        config.setConnectionTimeout(30000);
+        config.setIdleTimeout(600000);
+        config.setMaxLifetime(1800000);
+
+        dataSource = new HikariDataSource(config);
+        System.out.println("HikariCP 连接池初始化完成");
+    }
+
+    private static String generateRandomStr(int n) {
+        StringBuilder sb = new StringBuilder(n);
+        for (int i = 0; i < n; i++)
             sb.append(CHARACTERS.charAt(random.nextInt(CHARACTERS.length())));
-        }
         return sb.toString();
     }
 
-    // 初始化Schema和表
+    private static int getMaxId(Connection conn) throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT MAX(id) FROM " + TABLE_NAME)) {
+            if (rs.next()) return rs.getInt(1);
+        }
+        return 0;
+    }
+
     private static void initSchemaAndTable(Connection conn) throws SQLException {
-        try (Statement stmt = conn.createStatement()) {
-            stmt.execute("CREATE SCHEMA IF NOT EXISTS " + SCHEMA_NAME);
-            stmt.execute("DROP TABLE IF EXISTS " + TABLE_NAME);
-            stmt.execute("""
-                CREATE TABLE %s (
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE SCHEMA IF NOT EXISTS " + SCHEMA_NAME);
+            st.execute("DROP TABLE IF EXISTS " + TABLE_NAME);
+            st.execute("""
+                CREATE TABLE %s(
                     id SERIAL PRIMARY KEY,
                     uid VARCHAR(32) NOT NULL UNIQUE,
                     content TEXT NOT NULL,
                     value INT NOT NULL,
-                    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """.formatted(TABLE_NAME));
-            stmt.execute("CREATE INDEX idx_%s_test_perf_value ON %s(value)"
-                    .formatted(SCHEMA_NAME, TABLE_NAME));
-            System.out.printf("Schema '%s'和表 '%s' 创建完成%n", SCHEMA_NAME, TABLE_NAME);
+                """.formatted(TABLE_NAME));
+            st.execute("CREATE INDEX idx_val ON %s(value)".formatted(TABLE_NAME));
         }
     }
 
-    // 批量插入数据
-    private static void insertLargeData(Connection conn, int totalRows, int batchSize) throws SQLException {
-        System.out.printf("开始插入 %d 条数据...%n", totalRows);
-        int totalBatches = (totalRows + batchSize - 1) / batchSize;
-
+    private static void insertLargeData(Connection conn, int total, int batchSize) throws SQLException {
         String sql = "INSERT INTO " + TABLE_NAME + " (uid, content, value) VALUES (?, ?, ?)";
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            for (int batch = 0; batch < totalBatches; batch++) {
-                int currentBatchSize = Math.min(batchSize, totalRows - batch * batchSize);
-                pstmt.clearBatch();
 
-                for (int i = 0; i < currentBatchSize; i++) {
-                    pstmt.setString(1, generateRandomStr(32));
-                    pstmt.setString(2, generateRandomStr(100));
-                    pstmt.setInt(3, random.nextInt(1000) + 1);
-                    pstmt.addBatch();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int batches = (total + batchSize - 1) / batchSize;
+
+            for (int b = 0; b < batches; b++) {
+                ps.clearBatch();
+                int cur = Math.min(batchSize, total - b * batchSize);
+
+                for (int i = 0; i < cur; i++) {
+                    ps.setString(1, generateRandomStr(32));
+                    ps.setString(2, generateRandomStr(100));
+                    ps.setInt(3, random.nextInt(1000) + 1);
+                    ps.addBatch();
                 }
+                ps.executeBatch();
 
-                pstmt.executeBatch();
-
-                if ((batch + 1) % 10 == 0) {
-                    double progress = (batch + 1.0) / totalBatches * 100;
-                    System.out.printf("插入进度: %.1f%% (%d/%d批次)%n", progress, batch + 1, totalBatches);
-                }
+                if ((b + 1) % 10 == 0)
+                    System.out.printf("插入进度 %.1f%%\n", (b + 1) * 100.0 / batches);
             }
         }
     }
 
-    // 测试查询性能
     private static void testSelectPerformance(Connection conn) throws SQLException {
-        // 获取最大ID
-        int maxId;
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT MAX(id) FROM " + TABLE_NAME)) {
-            rs.next();
-            maxId = rs.getInt(1);
-            if (maxId == 0) return;
-        }
+        int maxId = getMaxId(conn);
+        if (maxId == 0) return;
 
-        // 单条主键查询
-        String singleSql = "SELECT * FROM " + TABLE_NAME + " WHERE id = ?";
         long totalSingle = 0;
-        try (PreparedStatement pstmt = conn.prepareStatement(singleSql)) {
-            for (int i = 0; i < SAMPLE_SIZE; i++) {
-                int id = random.nextInt(maxId) + 1;
-                pstmt.setInt(1, id);
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT * FROM " + TABLE_NAME + " WHERE id = ?")) {
 
-                long start = System.nanoTime();
-                pstmt.executeQuery();
-                long end = System.nanoTime();
-                totalSingle += (end - start);
+            for (int i = 0; i < SAMPLE_SIZE; i++) {
+                ps.setInt(1, random.nextInt(maxId) + 1);
+                long s = System.nanoTime();
+                ps.executeQuery();
+                totalSingle += System.nanoTime() - s;
             }
         }
-        double avgSingle = totalSingle / 1e9 / SAMPLE_SIZE;
+        System.out.printf("单条主键查询平均: %.6f秒%n",
+                totalSingle / 1e9 / SAMPLE_SIZE);
 
-        // 条件查询
-        String condSql = "SELECT * FROM " + TABLE_NAME + " WHERE value = ? LIMIT 10";
         long totalCond = 0;
-        try (PreparedStatement pstmt = conn.prepareStatement(condSql)) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT * FROM " + TABLE_NAME + " WHERE value = ? LIMIT 10")) {
             for (int i = 0; i < SAMPLE_SIZE; i++) {
-                int value = random.nextInt(1000) + 1;
-                pstmt.setInt(1, value);
-
-                long start = System.nanoTime();
-                pstmt.executeQuery();
-                long end = System.nanoTime();
-                totalCond += (end - start);
+                ps.setInt(1, random.nextInt(1000) + 1);
+                long s = System.nanoTime();
+                ps.executeQuery();
+                totalCond += System.nanoTime() - s;
             }
         }
-        double avgCond = totalCond / 1e9 / SAMPLE_SIZE;
+        System.out.printf("条件查询平均: %.6f秒%n",
+                totalCond / 1e9 / SAMPLE_SIZE);
 
-        // 范围查询
-        String rangeSql = "SELECT * FROM " + TABLE_NAME +
-                " WHERE value BETWEEN ? AND ? ORDER BY create_time LIMIT 1000";
-        long rangeTime;
-        try (PreparedStatement pstmt = conn.prepareStatement(rangeSql)) {
-            pstmt.setInt(1, 400);
-            pstmt.setInt(2, 600);
-
-            long start = System.nanoTime();
-            pstmt.executeQuery();
-            long end = System.nanoTime();
-            rangeTime = end - start;
+        long s = System.nanoTime();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT * FROM " + TABLE_NAME + " WHERE value BETWEEN 400 AND 600 ORDER BY create_time LIMIT 1000"
+        )) {
+            ps.executeQuery();
         }
-        double rangeSec = rangeTime / 1e9;
-
-        System.out.println("查询性能:");
-        System.out.printf("  单条主键查询（%d次平均）: %.6f秒/次%n", SAMPLE_SIZE, avgSingle);
-        System.out.printf("  条件查询（%d次平均）: %.6f秒/次%n", SAMPLE_SIZE, avgCond);
-        System.out.printf("  范围查询（1000条结果）: %.6f秒%n", rangeSec);
+        System.out.printf("范围查询: %.6f秒%n", (System.nanoTime() - s) / 1e9);
     }
 
-    // 测试更新性能
     private static void testUpdatePerformance(Connection conn) throws SQLException {
-        // 获取最大ID
-        int maxId;
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT MAX(id) FROM " + TABLE_NAME)) {
-            rs.next();
-            maxId = rs.getInt(1);
-            if (maxId == 0) return;
-        }
+        int maxId = getMaxId(conn);
+        long total = 0;
 
-        String sql = "UPDATE " + TABLE_NAME + " SET value = ? WHERE id = ?";
-        long totalTime = 0;
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE " + TABLE_NAME + " SET value = ? WHERE id = ?")) {
+
             for (int i = 0; i < SAMPLE_SIZE; i++) {
-                int targetId = random.nextInt(maxId) + 1;
-                int newValue = random.nextInt(1000) + 1;
+                ps.setInt(1, random.nextInt(1000) + 1);
+                ps.setInt(2, random.nextInt(maxId) + 1);
 
-                pstmt.setInt(1, newValue);
-                pstmt.setInt(2, targetId);
-
-                long start = System.nanoTime();
-                pstmt.executeUpdate();
-                long end = System.nanoTime();
-                totalTime += (end - start);
+                long s = System.nanoTime();
+                ps.executeUpdate();
+                total += System.nanoTime() - s;
             }
         }
-
-        double avgUpdate = totalTime / 1e9 / SAMPLE_SIZE;
-        System.out.printf("更新性能（%d次平均）: %.6f秒/次%n", SAMPLE_SIZE, avgUpdate);
+        System.out.printf("更新平均: %.6f秒%n", total / 1e9 / SAMPLE_SIZE);
     }
 
-    // 测试删除性能
     private static void testDeletePerformance(Connection conn) throws SQLException {
-        // 备份数据
         List<Object[]> backup = new ArrayList<>();
-        String selectSql = "SELECT id, uid, content, value FROM " + TABLE_NAME +
-                " ORDER BY random() LIMIT " + SAMPLE_SIZE;
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(selectSql)) {
-            while (rs.next()) {
-                backup.add(new Object[]{
-                        rs.getInt(1),
-                        rs.getString(2),
-                        rs.getString(3),
-                        rs.getInt(4)
-                });
-            }
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(
+                     "SELECT id,uid,content,value FROM " + TABLE_NAME + " ORDER BY random() LIMIT " + SAMPLE_SIZE)) {
+            while (rs.next())
+                backup.add(new Object[]{rs.getInt(1), rs.getString(2), rs.getString(3), rs.getInt(4)});
         }
 
-        if (backup.isEmpty()) return;
-
-        // 执行删除
-        String deleteSql = "DELETE FROM " + TABLE_NAME + " WHERE id = ?";
-        long totalTime = 0;
-        try (PreparedStatement pstmt = conn.prepareStatement(deleteSql)) {
+        long total = 0;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM " + TABLE_NAME + " WHERE id = ?")) {
             for (Object[] row : backup) {
-                int id = (int) row[0];
-                pstmt.setInt(1, id);
-
-                long start = System.nanoTime();
-                pstmt.executeUpdate();
-                long end = System.nanoTime();
-                totalTime += (end - start);
+                ps.setInt(1, (int) row[0]);
+                long s = System.nanoTime();
+                ps.executeUpdate();
+                total += System.nanoTime() - s;
             }
         }
+        System.out.printf("删除平均: %.6f秒%n", total / 1e9 / SAMPLE_SIZE);
 
-        // 恢复数据
-        String insertSql = "INSERT INTO " + TABLE_NAME + " (id, uid, content, value) VALUES (?, ?, ?, ?)";
-        try (PreparedStatement pstmt = conn.prepareStatement(insertSql)) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO " + TABLE_NAME + " (id,uid,content,value) VALUES (?,?,?,?)")) {
             for (Object[] row : backup) {
-                pstmt.setInt(1, (int) row[0]);
-                pstmt.setString(2, (String) row[1]);
-                pstmt.setString(3, (String) row[2]);
-                pstmt.setInt(4, (int) row[3]);
-                pstmt.addBatch();
+                ps.setInt(1, (int) row[0]);
+                ps.setString(2, (String) row[1]);
+                ps.setString(3, (String) row[2]);
+                ps.setInt(4, (int) row[3]);
+                ps.addBatch();
             }
-            pstmt.executeBatch();
+            ps.executeBatch();
         }
-
-        double avgDelete = totalTime / 1e9 / SAMPLE_SIZE;
-        System.out.printf("删除性能（%d次平均）: %.6f秒/次%n", SAMPLE_SIZE, avgDelete);
     }
 
-    // 并发操作任务
+    // ==========================================================
+    // ⭐ 单个并发任务（确保使用连接池）
+    // ==========================================================
     private static class ConcurrentTask implements Callable<Map<String, Object>> {
-        private final int operationId;
 
-        public ConcurrentTask(int operationId) {
-            this.operationId = operationId;
+        private final int id;
+
+        public ConcurrentTask(int id) {
+            this.id = id;
         }
 
         @Override
         public Map<String, Object> call() {
-            Map<String, Object> result = new HashMap<>();
-            result.put("id", operationId);
 
-            Connection conn = null;
-            try {
-                conn = DriverManager.getConnection(DB_URL, USER, PASSWORD);
+            Map<String, Object> res = new HashMap<>();
+            res.put("id", id);
+
+            try (Connection conn = dataSource.getConnection()) {  // ⭐ 重点：从连接池取连接
                 conn.setAutoCommit(true);
 
-                String action = random.nextBoolean() ?
-                        (random.nextBoolean() ? "select" : "update") : "delete_restore";
+                double p = random.nextDouble();
+                String action;
+
+                if (p < 0.3) action = "select";
+                else if (p < 0.6) action = "update";
+                else action = "delete_restore";
+
                 long start = System.nanoTime();
 
                 switch (action) {
-                    case "select":
-                        handleSelect(conn);
-                        break;
-                    case "update":
-                        handleUpdate(conn);
-                        break;
-                    case "delete_restore":
-                        handleDeleteRestore(conn);
-                        break;
+                    case "select" -> doSelect(conn);
+                    case "update" -> doUpdate(conn);
+                    case "delete_restore" -> doDeleteRestore(conn);
                 }
 
                 long end = System.nanoTime();
-                result.put("action", action);
-                result.put("time", (end - start) / 1e9);
 
-            } catch (SQLException e) {
-                result.put("action", "error");
-                result.put("error", e.getMessage());
-            } finally {
-                if (conn != null) {
-                    try {
-                        conn.close();
-                    } catch (SQLException e) {
-                        // 忽略关闭异常
-                    }
-                }
+                res.put("action", action);
+                res.put("time", (end - start) / 1e9);
+
+            } catch (Exception e) {
+                res.put("action", "error");
+                res.put("error", e.getMessage());
             }
-            return result;
+
+            return res;
         }
 
-        private void handleSelect(Connection conn) throws SQLException {
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT MAX(id) FROM " + TABLE_NAME)) {
-                if (rs.next() && rs.getInt(1) > 0) {
-                    int maxId = rs.getInt(1);
-                    int id = random.nextInt(maxId) + 1;
-                    try (PreparedStatement pstmt = conn.prepareStatement(
-                            "SELECT * FROM " + TABLE_NAME + " WHERE id = ?")) {
-                        pstmt.setInt(1, id);
-                        pstmt.executeQuery();
-                    }
+        private void doSelect(Connection conn) throws Exception {
+            int maxId = getMaxId(conn);
+            if (maxId <= 0) return;
+
+            int rid = random.nextInt(maxId) + 1;
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT * FROM " + TABLE_NAME + " WHERE id = ?")) {
+                ps.setInt(1, rid);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {}
                 }
             }
         }
 
-        private void handleUpdate(Connection conn) throws SQLException {
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT MAX(id) FROM " + TABLE_NAME)) {
-                if (rs.next() && rs.getInt(1) > 0) {
-                    int maxId = rs.getInt(1);
-                    int targetId = random.nextInt(maxId) + 1;
-                    int newValue = random.nextInt(1000) + 1;
+        private void doUpdate(Connection conn) throws Exception {
+            int maxId = getMaxId(conn);
+            if (maxId <= 0) return;
 
-                    try (PreparedStatement pstmt = conn.prepareStatement(
-                            "UPDATE " + TABLE_NAME + " SET value = ? WHERE id = ?")) {
-                        pstmt.setInt(1, newValue);
-                        pstmt.setInt(2, targetId);
-                        pstmt.executeUpdate();
-                    }
-                }
+            int rid = random.nextInt(maxId) + 1;
+            int val = random.nextInt(1000) + 1;
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE " + TABLE_NAME + " SET value = ? WHERE id = ?")) {
+                ps.setInt(1, val);
+                ps.setInt(2, rid);
+                ps.executeUpdate();
             }
         }
 
-        private void handleDeleteRestore(Connection conn) throws SQLException {
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery(
-                         "SELECT id, uid, content, value FROM " + TABLE_NAME + " ORDER BY random() LIMIT 1")) {
-                if (rs.next()) {
-                    int id = rs.getInt(1);
-                    String uid = rs.getString(2);
-                    String content = rs.getString(3);
-                    int value = rs.getInt(4);
+        private void doDeleteRestore(Connection conn) throws Exception {
+            int id;
+            String uid, content;
+            int value;
 
-                    // 删除
-                    try (PreparedStatement pstmt = conn.prepareStatement(
-                            "DELETE FROM " + TABLE_NAME + " WHERE id = ?")) {
-                        pstmt.setInt(1, id);
-                        pstmt.executeUpdate();
-                    }
+            try (Statement st = conn.createStatement();
+                 ResultSet rs = st.executeQuery(
+                         "SELECT id,uid,content,value FROM " +
+                                 TABLE_NAME + " ORDER BY random() LIMIT 1")) {
 
-                    // 恢复
-                    try (PreparedStatement pstmt = conn.prepareStatement(
-                            "INSERT INTO " + TABLE_NAME + " (id, uid, content, value) VALUES (?, ?, ?, ?)")) {
-                        pstmt.setInt(1, id);
-                        pstmt.setString(2, uid);
-                        pstmt.setString(3, content);
-                        pstmt.setInt(4, value);
-                        pstmt.executeUpdate();
-                    }
-                }
+                if (!rs.next()) return;
+
+                id = rs.getInt(1);
+                uid = rs.getString(2);
+                content = rs.getString(3);
+                value = rs.getInt(4);
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM " + TABLE_NAME + " WHERE id = ?")) {
+                ps.setInt(1, id);
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO " + TABLE_NAME + " (id,uid,content,value) VALUES (?,?,?,?)")) {
+                ps.setInt(1, id);
+                ps.setString(2, uid);
+                ps.setString(3, content);
+                ps.setInt(4, value);
+                ps.executeUpdate();
             }
         }
     }
 
-    // 测试并发性能
+    // ==========================================================
+    // ⭐ 并发测试（已使用连接池）
+    // ==========================================================
     private static void testConcurrentPerformance() {
-        int totalOps = 1000;
-        System.out.printf("开始并发测试（%d线程，共%d次操作）...%n", CONCURRENT_WORKERS, totalOps);
+        System.out.printf("开始并发测试（%d线程，共%d次操作）...\n",
+                CONCURRENT_WORKERS, TOTAL_TASKS);
 
-        long start = System.nanoTime();
-        ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_WORKERS);
+        ExecutorService pool = Executors.newFixedThreadPool(CONCURRENT_WORKERS);
         List<Future<Map<String, Object>>> futures = new ArrayList<>();
 
-        for (int i = 0; i < totalOps; i++) {
-            futures.add(executor.submit(new ConcurrentTask(i)));
+        long start = System.nanoTime();
+
+        for (int i = 0; i < TOTAL_TASKS; i++) {
+            futures.add(pool.submit(new ConcurrentTask(i)));
         }
 
-        // 收集结果
         int success = 0;
-        List<String> errors = new ArrayList<>();
-        Map<String, List<Double>> actionTimes = new HashMap<>();
-        actionTimes.put("select", new ArrayList<>());
-        actionTimes.put("update", new ArrayList<>());
-        actionTimes.put("delete_restore", new ArrayList<>());
+        int fail = 0;
 
-        for (Future<Map<String, Object>> future : futures) {
+        Map<String, List<Double>> times = new HashMap<>();
+        times.put("select", new ArrayList<>());
+        times.put("update", new ArrayList<>());
+        times.put("delete_restore", new ArrayList<>());
+
+        for (Future<Map<String, Object>> f : futures) {
             try {
-                Map<String, Object> result = future.get();
-                String action = (String) result.get("action");
+                Map<String, Object> r = f.get();
+                String action = (String) r.get("action");
 
                 if ("error".equals(action)) {
-                    errors.add((String) result.get("error"));
+                    fail++;
                 } else {
                     success++;
-                    actionTimes.get(action).add((Double) result.get("time"));
+                    times.get(action).add((Double) r.get("time"));
                 }
-            } catch (InterruptedException | ExecutionException e) {
-                errors.add(e.getMessage());
+
+            } catch (Exception e) {
+                fail++;
             }
         }
 
-        executor.shutdown();
+        pool.shutdown();
         long end = System.nanoTime();
-        double totalTime = (end - start) / 1e9;
 
-        // 计算平均时间
-        Map<String, Double> avgTimes = new HashMap<>();
-        for (Map.Entry<String, List<Double>> entry : actionTimes.entrySet()) {
-            List<Double> times = entry.getValue();
-            if (times.isEmpty()) {
-                avgTimes.put(entry.getKey(), 0.0);
-            } else {
-                double avg = times.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-                avgTimes.put(entry.getKey(), avg);
-            }
-        }
+        System.out.printf("并发总耗时: %.6f秒%n", (end - start) / 1e9);
+        System.out.printf("成功: %d, 失败: %d%n", success, fail);
 
-        System.out.println("并发测试完成:");
-        System.out.printf("  总耗时: %.6f秒%n", totalTime);
-        System.out.printf("  总操作数: %d，成功: %d，失败: %d%n", totalOps, success, errors.size());
-        System.out.println("  平均耗时（按操作类型）:");
-        System.out.printf("    查询: %.6f秒/次%n", avgTimes.get("select"));
-        System.out.printf("    更新: %.6f秒/次%n", avgTimes.get("update"));
-        System.out.printf("    删除恢复: %.6f秒/次%n", avgTimes.get("delete_restore"));
-
-        if (!errors.isEmpty()) {
-            System.out.printf("  错误示例: %s%n", errors.get(0));
-        }
+        times.forEach((k, v) -> {
+            double avg = v.stream().mapToDouble(a -> a).average().orElse(0);
+            System.out.printf("%s 平均时间: %.6f秒%n", k, avg);
+        });
     }
 }
