@@ -692,7 +692,23 @@ vv
      - `uid`：32位随机字符串（包含大小写字母和数字）
      - `content`：100位随机字符串
      - `value`：1-1000的随机整数
-  3. 各语言采用预编译语句+事务批量插入（如Go的`tx.Prepare`+`stmt.Exec`、Java的`PreparedStatement`+`addBatch`）。
+  3. 各语言均采用预编译语句
+      - SQL 只解析一次
+      - 后续多次执行仅绑定参数，减少 CPU 负担
+      - 保证语句安全性
+      - 对应实现：
+         - Go：`tx.Prepare()` + `stmt.Exec()`
+         - Java：`PreparedStatement` + `addBatch()`
+         - C++：`PQprepare()` + `PQexecPrepared()`
+         - Python: `psycopg2.extras.execute_batch()`
+  4. 各语言均采用事务批量插入
+      - 将每 N 条插入放在同一个事务中
+      - 批量写入 WAL，避免每条记录都触发 `fsync`
+      - 对应实现：
+          - Go：`db.Begin()` + `tx.Commit()`
+          - Java：`setAutoCommit(false)` + `commit()`
+          - C++：`BEGIN` / `COMMIT`
+          - Python: `conn.autocommit = False` + `execute_batch()` + `conn.commit()`
   4. 每完成10批次输出进度，最终记录总插入耗时及单条数据平均耗时（总耗时/500000）。
 
 
@@ -729,10 +745,18 @@ vv
 #### （6）并发性能测试
 - **测试目标**：分析多线程/协程环境下不同语言的并发处理能力，反映高并发场景的吞吐量。
 - **测试流程**：
-  1. 启动10个并发任务（Go使用goroutine，Java使用`ExecutorService`，Python使用`threading`，C++使用`std::thread`）。
+  1. 启动10个并发任务:
+      - Go: `goroutine`（多线程调度）
+      - Java: `ExecutorService`（线程池）
+      - Python: `threading`（GIL 下 I/O 并发）
+      - C++: `std::thread`（真正多线程）
   2. 总执行1000次操作，各任务随机执行三类操作：30%查询（同单条主键查询）、30%更新（同单条更新）、40%“删除-恢复”（同删除测试）。
-  3. 使用同步机制（如Go的`chan`、Java的`CountDownLatch`）等待所有任务完成，记录总耗时。
-  4. 统计各类操作的成功次数及平均耗时，计算整体吞吐量（总操作数/总耗时）。
+  3. 使用同步机制等待所有任务完成，记录总耗时
+      - Go: `chan`
+      - Java: `CountDownLatch`
+      - C++: `std::thread` + `join()`
+      - Python: `ThreadPoolExecutor` + `as_completed()`
+  4. 统计各类操作的成功次数及平均耗时，计算整体吞吐量（总操作数/总耗时）
 
 
 ### 4. 测试结果与分析
@@ -749,35 +773,56 @@ vv
 | 删除性能（秒/次） | 0.000138 | 0.000096 | 0.000272 | 0.0000893919 |
 | 并发总耗时（秒） | 38.192053 | 5.733529 | 8.939368 | 5.48928 |
 
-
-#### （2）关键现象与原因分析
-1. **初始化性能**  
-   - Go 最快：轻量级 runtime + 高效数据库驱动（lib/pq）。
-   - C++ 接近：编译期优化 + libpq 启动开销较小。
-   - Python 接近：
-   - Java 较慢：受解释器启动与 JVM 初始化拖累
+#### （2）测试结果对比柱状图
+![programing_languages](programing_languages.png)
+#### （3）关键现象与原因分析
+1. **初始化性能** 
+   - **速度：C++ ≈ Python ≈ Go  >> Java**
+   - Go ：轻量级 runtime + 高效数据库驱动（lib/pq），连接建立速度快
+   - C++ ：编译期优化 + libpq 直接访问底层协议，启动开销最低
+   - Python ：连接建立简单、解释器常驻，初始化成本较低
+   - Java ：受 JVM 启动、类加载、JIT 预热等影响，初始化明显更慢
 
 2. **批量插入性能**  
-   - C++ 最快：
-   - Java表现最优：JDBC连接池（HikariCP）的连接复用机制和`PreparedStatement`的批量处理优化，减少了数据库交互次数
-   - Python（约19秒）和Go（约28秒）较慢，受限于驱动对事务提交的处理效率。
+   - **速度：C++ ≈ Java >> Python > Go**
+   - C++ ：直接构造大 SQL 字符串批量插入，libpq 写入路径最短，几乎无抽象损耗
+   - Java：JDBC连接池（HikariCP）的连接复用机制和`PreparedStatement`的批量处理优化，减少了数据库交互次数
+   - Python: `execute_batch()` 自动分批发送，但 Python 层仍有较高解释器开销
+   - Go: 使用 `tx.Prepare()` + 多次 `stmt.Exec()`，驱动层事务提交开销较大，批处理效率稍弱
 
 3. **查询性能**  
-   - 单条主键查询：C++ 使用 libpq，几乎无额外抽象，函数调用链最短。
-Go、Java, Python 都有 runtime 层的结构体包装与类型转换  
-   - 条件查询：C++和Java更优，得益于底层驱动对索引扫描的高效实现；Python因动态类型解析开销略高。  
-   - 范围查询：C++、Java 更擅长处理较大 ResultSet。
-     Go 的 database/sql 在扫描大量行时会产生额外反射开销，因此最慢。
+   - 单条主键查询与条件查询：
+      - **速度：C++ > Go >> Python >> Java**
+      - C++: libpq 直接执行 SQL，函数调用链最短，无虚拟机
+      - Go: `database/sql` 轻量封装，反射与类型转换成本较低
+      - Python: 查询结果需要 Python 对象封装，解释器层处理较慢
+      - Java: JDBC ResultSet 有较重的对象包装和类型转换，开销最大
+
+   - 范围查询：
+      - **速度：C++ ≈ Go ≈ Python >> Java**
+      - C++：流式读取结果，libpq 内存管理高效
+      - Go：驱动对大结果集处理较快，runtime 支持良好
+      - Python：对 I/O 大小敏感度不高，读取大量行时开销反而与 C++ 接近
+      - Java：`ResultSet` 对高行数数据处理最慢，对象构造成本高
+      
 
 4. **更新与删除性能**  
-   - 更新/删除：C++最快。底层 IO + 简洁的 libpq pipeline
+   - **速度：C++ ≈ Go ≈ Python >> Java**
+   - C++：libpq 直接发送 SQL，路径最短
+   - Go：语句简单，驱动往返时间是主要开销，总体快速
+   - Python：更新/删除属于纯 I/O 操作，解释器开销不突出
+   - Java：JDBC 每次执行都涉及较重的对象封装，延迟较高
 
 5. **并发性能**  
-   Go并发总耗时最短（3.49秒），得益于goroutine的轻量级调度（用户态线程，上下文切换成本低）；Java和C++因依赖OS线程（内核态调度）耗时接近（约5.5秒）；Python因GIL锁限制多线程并行执行，效率低于Go但优于Java/C++。
+   - **速度：C++ ≈ Go ≈ Java >> Python**
+   - C++：std::thread 为真正内核态线程，充分利用多核 CPU
+   - Go：得益于goroutine的轻量级调度（用户态线程，上下文切换成本低）
+   - Java：依赖OS线程（内核态调度）
+   - Python：受 GIL 限制，多线程无法并行执行 Python 字节码，CPU 并发最弱
 
 
 ### 5. 结论与适用场景
-- **Java**：适合企业级应用，在批量插入、更新和范围查询场景中性能突出，连接池机制对高并发稳定性支持较好。
-- **Go**：适合高并发服务，初始化快、删除操作高效，goroutine模型在多任务处理中优势明显，适合编写数据库中间件。
-- **C++**：适合对条件查询性能要求极高的场景，但整体开发复杂度较高，需手动管理内存和连接状态。
-- **Python**：适合快速开发和简单查询场景，单条主键查询性能优异，但批量操作和并发处理能力较弱。
+- **Java**：批量插入性能非常强（依赖 HikariCP + PreparedStatement 批处理），并发稳定性好，但初始化慢、查询慢、更新删除也落后于 C++/Go。适合企业级批处理、大规模数据导入、对稳定性要求高的场景。
+- **Go**：在初始化、查询、更新、删除、并发中表现稳定且接近 C++，并发性能尤为突出（goroutine 调度极轻量）。适合构建高并发数据库服务、微服务、数据中间层。
+- **C++**：整体性能最强，尤其在主键查询、条件查询、范围查询、更新、删除、并发等所有核心数据库操作中几乎都保持领先。适用于对性能要求极高的系统，如数据库代理、实时数据处理、中间件等，但开发复杂度最高。
+- **Python**：初始化和简单操作性能尚可，但受解释器开销和 GIL 限制，批量插入和高并发性能明显落后。适合脚本型任务、数据分析、原型验证，不适合高吞吐量数据库服务。
