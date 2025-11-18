@@ -274,18 +274,18 @@ https://online.visual-paradigm.com
 ## 六、任务四：比较DBMS, File I/O, File Stream(任务四bonus)
 
 ### 1. 测试环境
-    - **硬件配置**
-        - *CPU型号*：12th Gen Intel(R) Core(TM) i9-12900H @ 2.50 GHz (14 cores / 20 threads)
-        - *内存大小*：64 GB DDR5 @ 4800 MT/s
-    - **软件环境**
-        - *DBMS*：PostgreSQL 17.4 on x86_64-windows
-        - *JDK*：OpenJDK 11（由 `pom.xml` 指定）
-        - *构建工具*：Apache Maven 3.9.9
-        - *主要依赖*：
-            - **org.postgresql:postgresql:42.7.3** — PostgreSQL 官方 JDBC 驱动，用于数据库连接
-            - **com.opencsv:opencsv:5.10** — CSV 文件解析库，用于导入原始数据
-            - **com.zaxxer:HikariCP:5.1.0** — 高性能数据库连接池，用于实现高并发下的连接复用
-        - *项目编码*：UTF-8
+  - **硬件配置**
+    - *CPU型号*：12th Gen Intel(R) Core(TM) i9-12900H @ 2.50 GHz (14 cores / 20 threads)
+    - *内存大小*：64 GB DDR5 @ 4800 MT/s
+  - **软件环境**
+    - *DBMS*：PostgreSQL 17.4 on x86_64-windows
+    - *JDK*：OpenJDK 11（由 `pom.xml` 指定）
+    - *构建工具*：Apache Maven 3.9.9
+    - *主要依赖*：
+      - **org.postgresql:postgresql:42.7.3** — PostgreSQL 官方 JDBC 驱动，用于数据库连接
+      - **com.opencsv:opencsv:5.10** — CSV 文件解析库，用于导入原始数据
+      - **com.zaxxer:HikariCP:5.1.0** — 高性能数据库连接池，用于实现高并发下的连接复用
+      - *项目编码*：UTF-8
 
 ### 2. 组织测试数据
   为了公平比较 **DBMS、File I/O** 与 **File Stream** 三种存储模式在执行 `SELECT`、`INSERT`、`UPDATE`、`DELETE` 四类操作时的性能，本实验对三种方案均使用同一份 `recipe.csv` 数据集，并保持一致的数据规模与测试逻辑。三种数据组织方式如下：
@@ -545,7 +545,6 @@ https://online.visual-paradigm.com
     在 PostgreSQL 中执行：
     ```sql
     SELECT count(*) FROM pg_stat_activity WHERE datname = 'sustc_db';
-    ```
   仅返回 1 ，表明数据库中只有一个活动连接，原因是每次查询都**独立建立连接**，造成瞬时大量连接请求。  
     而PostgreSQL 默认 `max_connections ≈ 100`，其余线程被阻塞或排队，导致系统无法真正并发执行。
     在`THREAD_COUNT = 10`, `TOTAL_QUERIES = 100`的条件下，baseline的`QPS: 26.23 queries/s`，为baseline上限，未实现高并发。
@@ -581,7 +580,7 @@ https://online.visual-paradigm.com
 
 ## 八、任务六 ：导入方法对比与导入代码优化（任务三bonus）
 ### 1. 测试环境
-    - **硬件配置**
+  - **硬件配置**
     - *CPU型号*：13th Gen Intel® Core™ i7-13650HX × 20
     - *内存大小*：24.0 GiB
   - **软件环境**
@@ -697,8 +696,7 @@ https://online.visual-paradigm.com
        content TEXT NOT NULL,
        value INT NOT NULL,
        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-     )
-     ```
+     )   
   4. 为`value`字段创建索引：`CREATE INDEX idx_test_perf_value ON test_schema.test_perf(value)`。
   5. 记录从连接建立到索引创建完成的总耗时。
 
