@@ -1,0 +1,29 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+
+                // 加入 PostgreSQL include 路径 
+                "C:/Program Files/PostgreSQL/17/include"
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceFolder}",
+
+                    // 让 VSCode IntelliSense 能找到 libpq-fe.h
+                    "C:/Program Files/PostgreSQL/17/include"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            },
+            "defines": [],
+            "windowsSdkVersion": "10.0.22621.0",
+            "compilerPath": "C:/mingw64/bin/g++.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}
