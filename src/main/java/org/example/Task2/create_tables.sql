@@ -1,6 +1,3 @@
---派生属性是直接导入还是计算？
---category如何清洗分出300+种？
-
 -- users实体
 CREATE TABLE users (
                        author_id      SERIAL PRIMARY KEY,

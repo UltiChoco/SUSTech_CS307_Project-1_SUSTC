@@ -1,8 +1,9 @@
 # Task3数据导入与代码优化
 
 ## 项目结构
+
 ```
-Task3_DataImport/
+Task3/
 ├── TableCreator.java        # 数据库表创建类，负责创建数据库模式和表结构
 ├── JsonParamReader.java     # JSON配置文件读取类，用于读取数据库连接参数等配置
 ├── Importer_pro.java        # 并行数据导入类，采用多线程并行导入数据以提高效率
