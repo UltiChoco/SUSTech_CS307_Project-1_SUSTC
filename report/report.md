@@ -1,20 +1,30 @@
 # SUSTech CS307 Project Part I — Report
+## 目录
+- [一、群组信息](#一-群组信息)
+- [二、项目背景](#二-项目背景)
+- [三、任务一：E-R图绘制](#三-任务一-e-r图绘制)
+- [四、任务二：数据库设计](#四-任务二-数据库设计)
+- [五、任务三：数据导入](#五-任务三-数据导入)
+- [六、任务四：比较DBMS, File I/O, File Stream(任务四bonus)](#六任务四比较dbms-file-io-file-stream任务四bonus)
+- [七、任务五：高并发查询处理（任务四 bonus）](#七-任务五-高并发查询处理-任务四-bonus)
+- [八、任务六：导入方法对比与导入代码优化（任务三 bonus）](#八-任务六-导入方法对比与导入代码优化-任务三-bonus)
+- [九、任务七：不同编程语言数据库性能对比（任务四 bonus）](#九-任务七-不同编程语言数据库性能对比-任务四-bonus)
 
-[TOC]
 
-## 1. 群组信息
+
+## 一、群组信息
 - **成员1**: 刘以煦 12410148
 - **成员2**: 刘君昊 12410303
+---
 
-
-## 2. 项目背景
+## 二、项目背景
 - ### 项目介绍： 
 根据课程提供的SUSTC食谱数据集设计标准数据库管理方式。完成数据库设计、数据快速导入、比较DBMS和文件I/O的性能及其他扩展内容。
 - ### 原始文件：
   `recipes.csv`, `user.csv`, `reviews.csv`
+---
 
-
-## 3. 任务一： E-R图绘制
+## 三、任务一： E-R图绘制
 
 - #### 绘图工具
 https://online.visual-paradigm.com
@@ -34,8 +44,8 @@ https://online.visual-paradigm.com
   - *has_ingredient*: recipes have ingredients (N to M)
   - *has_instruction*: recpes have instructions (1 to N)
   - *has_catregory*: recipes have categorties (N to M)
-
-## 4. 任务二： 数据库设计
+---
+## 四、任务二： 数据库设计
 - #### 数据库图
 ![diagram_visualization](diagram_visualization.png)
 - #### 建表说明
@@ -144,11 +154,12 @@ https://online.visual-paradigm.com
   - `recipe_id` → `recipe(recipe_id)`  
   - `category_id` → `category(category_id)`  
   
-
-## 5. 任务三：数据导入
+---
+## 五、任务三：数据导入
 
 - ### 导入流程概述
-  本次项目的数据导入使用 JDBC 连接数据库，并通过 PostgreSQL 的 `COPY` 方法实现高效的数据导入。整个导入流程包括数据预处理、CSV 文件构建以及数据导入三个主要阶段。数据预处理阶段对原始的 `recipes.csv` 和 `reviews.csv` 文件进行格式整理和非法字符替换，确保数据的合法性和一致性。随后，通过 OpenCSV 库解析 CSV 文件内容，并根据数据库表结构构建对应的 CSV 文件。最后，使用 PostgreSQL 的 `COPY` 方法将数据批量导入数据库。总数据量约为 2200 万行，全过程平均导入时间为 235 s。经过优化导入速度提升至37.518s。导入步骤如下：
+  本次项目的数据导入使用 JDBC 连接数据库，并通过 PostgreSQL 的 `COPY` 方法实现高效的数据导入。整个导入流程包括数据预处理、CSV 文件构建以及数据导入三个主要阶段。数据预处理阶段对原始的 `recipes.csv` 和 `reviews.csv` 文件进行格式整理和非法字符替换，确保数据的合法性和一致性。随后，通过 OpenCSV 库解析 CSV 文件内容，并根据数据库表结构构建对应的 CSV 文件。最后，使用 PostgreSQL 的 `COPY` 方法将数据批量导入数据库。总数据量约为 2200 万行，**全过程平均导入时间为 235 s, 经过优化导入速度提升至37.518s（优化部分见任务七）**。
+  #### 导入步骤如下：
   - 在resource目录下的param.json中完善信息，信息包括：url、user、password、schema，和三份csv文件的路径
   - 先运行DataPreprocessor.java，对文件和数据进行清洗和整理。
   - 然后运行Importer.java（或Importer_pro.java，优化版本，导入速度更快，但是需要更大的内存）  
@@ -181,84 +192,85 @@ https://online.visual-paradigm.com
        - 从 `user.csv` 文件中读取用户信息。
        - 构建包含 `author_id`, `author_name`, `gender`, `age`, `following_cnt`, `follower_cnt` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
-       - 299_892
+       - **记录数**：299_892
 
     2. **`follows` 表**
        - 从 `user.csv` 文件中解析用户关注关系。
        - 构建包含 `blogger_id` 和 `follower_id` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
-       - 1_591_836
+       - **记录数**：1_591_836
 
     3. **`recipe` 表**
        - 从 `recipes.csv` 文件中读取食谱信息。
        - 构建包含 `recipe_id`, `author_id`, `dish_name`, `date_published`, `cook_time`, `prep_time`, `total_time`, `description`, `aggr_rating`, `review_cnt`, `yield`, `servings`, `calories`, `fat`, `saturated_fat`, `cholesterol`, `sodium`, `carbohydrate`, `fiber`, `sugar`, `protein` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
-       - 522_517
+       - **记录数**：522_517
 
     4. **`favors_recipe` 表**
        - 从 `recipes.csv` 文件中解析用户收藏的食谱关系。
        - 构建包含 `author_id` 和 `recipe_id` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
-       - 2_588_000
+       - **记录数**：2_588_000
 
     5. **`review` 表**
        - 从 `reviews.csv` 文件中读取评论信息。
        - 构建包含 `review_id`, `recipe_id`, `author_id`, `rating`, `review_text`, `date_submit`, `date_modify` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
-       - 1_401_963
+       - **记录数**：1_401_963
 
     6. **`likes_review` 表**
        - 从 `reviews.csv` 文件中解析用户点赞评论的关系。
        - 构建包含 `author_id` 和 `review_id` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
-       - 5_402_271
+       - **记录数**：5_402_271
 
     7. **`keyword` 表**
        - 从 `recipes.csv` 文件中提取关键词。
        - 构建包含 `keyword_name` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
-       - 314
+       - **记录数**：314
 
     8. **`ingredient` 表**
        - 从 `recipes.csv` 文件中提取食材信息。
        - 构建包含 `ingredient_name` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
-       - 7_369
+       - **记录数**：7_369
 
     9. **`instruction` 表**
        - 从 `recipes.csv` 文件中提取食谱步骤信息。
        - 构建包含 `recipe_id`, `step_no`, `instruction_text` 的 CSV 文件。
        - 使用 `COPY` 方法将数据导入数据库。
-       - 3_467_823
+       - **记录数**：3_467_823
 
     10. **`category` 表**
         - 从 `recipes.csv` 文件中提取分类信息。
         - 构建包含 `category_name` 的 CSV 文件。
         - 使用 `COPY` 方法将数据导入数据库。
-        - 311
+        - **记录数**：311
 
     11. **`has_keyword` 表**
         - 从 `recipes.csv` 文件中解析食谱与关键词的关系。
         - 构建包含 `recipe_id` 和 `keyword_id` 的 CSV 文件。
         - 使用 `COPY` 方法将数据导入数据库。
-        - 2_529_132
+        - **记录数**：2_529_132
 
     12. **`has_ingredient` 表**
         - 从 `recipes.csv` 文件中解析食谱与食材的关系。
         - 构建包含 `recipe_id` 和 `ingredient_id` 的 CSV 文件。
         - 使用 `COPY` 方法将数据导入数据库。
-        - 4_014_727
+        - **记录数**：4_014_727
 
     13. **`has_category` 表**
         - 从 `recipes.csv` 文件中解析食谱与分类的关系。
         - 构建包含 `recipe_id` 和 `category_id` 的 CSV 文件。
         - 使用 `COPY` 方法将数据导入数据库。
-        - 521_766
+        - **记录数**：521_766
 
   - #### 数据导入
     使用 PostgreSQL 的 `COPY` 方法将构建好的 CSV 文件批量导入数据库。`COPY` 方法支持高效的数据导入，能够显著提升导入性能。在导入过程中，通过进度条实时显示导入进度，确保导入过程的可视化。
 
-## 6. 任务四：比较DBMS, File I/O, File Stream(任务四bonus)
+---
+## 六、任务四：比较DBMS, File I/O, File Stream(任务四bonus)
 
 - ### 测试环境
     - **硬件配置**
@@ -275,9 +287,10 @@ https://online.visual-paradigm.com
         - *项目编码*：UTF-8
 
 - ### 组织测试数据
-  为了公平比较 DBMS 与 File I/O 环境下执行 `SELECT`、`INSERT`、`UPDATE`、`DELETE` 四类操作的效率，本次实验设计了两套等价的数据组织方式，但分别遵循这两种体系的典型数据结构：
-    - **DBMS（PostgreSQL）**：关系型存储 + 索引 + 事务机制
-    - **File I/O**：基于 CSV 的纯文本顺序存储
+  为了公平比较 **DBMS、File I/O** 与 **File Stream** 三种存储模式在执行 `SELECT`、`INSERT`、`UPDATE`、`DELETE` 四类操作时的性能，本实验对三种方案均使用同一份 `recipe.csv` 数据集，并保持一致的数据规模与测试逻辑。三种数据组织方式如下：
+    - **DBMS（PostgreSQL）**：通过 `PreparedStatement` 执行等价的查询、插入、更新与删除操作，利用事务机制保证每次操作互不影响（通过 `rollback()` 避免污染数据）。数据库保持关系型结构与索引优化
+    - **File I/O**：使用 `Java BufferedReader` / `BufferedWriter` 对原始 recipe.csv 文件**逐行顺序读写**
+    - **File Stream**：保持与 CSV 相同的数据格式，但采用 `Files.lines()`、`filter()`、`map()` 等流式操作实现对文件的筛选、更新与删除
 
   #### （1）DBMS 数据组织方式
   采用 `recipe` 表作为测试表，该表已被填充真实数据，因此不需要额外构造测试数据。程序仅使用：
@@ -448,7 +461,7 @@ https://online.visual-paradigm.com
     - #### 性能对比数据
   ###### 表 1. 性能对比结果（平均耗时，单位：ms）
 
-  | 操作类型 | PostgreSQL (ms) | File I/O (ms) | File Stream (ms) | File/DB倍率 | Stream/DB倍率 |
+  | 操作类型 | PostgreSQL (ms) | File I/O (ms) | File Stream (ms) | (I/O)/DB倍率 | Stream/DB倍率 |
     |----------|------------------|----------------|-------------------|-------------|---------------|
   | SELECT   | 0.740            | 2.823          | 0.858             | x3.81       | x1.16         |
   | INSERT   | 0.434            | 0.166          | 0.155             | x0.38       | x0.36         |
@@ -456,57 +469,57 @@ https://online.visual-paradigm.com
   | DELETE   | 0.238            | 1555.001       | 1706.257          | x6521.42    | x7155.77      |
 
     - #### 性能差异分析
-        - **SELECT：DBMS 优于传统 File I/O（约 3.8 倍），Stream 接近 DBMS**
+        - **`SELECT`：DBMS 优于传统 File I/O（约 3.8 倍），Stream 接近 DBMS**
             - PostgreSQL 在 `recipe_id` 上基于 B+ 树索引，随机按主键查询复杂度为 **O(log n)**
-            - 传统 File I/O 需顺序扫描 CSV 文件，复杂度为 **O(n)**
-            - File Stream 借助流式处理的延迟加载特性，减少了部分内存开销，性能接近 DBMS（仅慢 16%），但仍依赖顺序扫描机制
+            - 传统 **File I/O** 需顺序扫描 CSV 文件，复杂度为 **O(n)**
+            - **File Stream** 借助流式处理的延迟加载特性，减少了部分内存开销，性能接近 **DBMS**（仅慢 16%），但仍依赖顺序扫描机制
 
-        - **INSERT：File I/O（含 Stream）快于 DBMS（约 2.6-2.8 倍）**
-            - File I/O 的插入是直接在文件尾部顺序写入，仅涉及磁盘追加操作，开销极低
-            - DBMS 的 `INSERT` 需要维护 WAL 日志、更新索引、进行事务管理和安全性检查，额外开销较大
-            - 传统 File I/O 与 Stream 性能接近，表明简单追加场景下两种文件操作方式效率差异微小
+        - **`INSERT`：File I/O（含 Stream）快于 DBMS（约 2.6-2.8 倍）**
+            - **File I/O** 的插入是直接在文件尾部顺序写入，仅涉及磁盘追加操作，开销极低
+            - **DBMS** 的 `INSERT` 需要维护 WAL 日志、更新索引、进行事务管理和安全性检查，额外开销较大
+            - 传统 **File I/O** 与 **File Stream** 性能接近，表明简单追加场景下两种文件操作方式效率差异微小
 
-        - **UPDATE：File I/O（含 Stream）远慢于 DBMS（约 4674-4979 倍）**
-            - DBMS 的 `UPDATE` 依赖索引快速定位记录所在数据页，修改后仅需刷新对应页，复杂度接近 **O(log n)**
-            - File I/O 需读入整个 CSV 文件到内存，修改目标行后重新写回临时文件，属于 **O(n)** 线性操作，且受文件大小影响显著
-            - Stream 处理通过函数式编程简化了代码逻辑，但本质仍是全量读写，性能与传统 File I/O 接近
+        - **`UPDATE`：File I/O（含 Stream）远慢于 DBMS（约 4674-4979 倍）**
+            - **DBMS** 的 `UPDATE` 依赖索引快速定位记录所在数据页，修改后仅需刷新对应页，复杂度接近 **O(log n)**
+            - **File I/O** 需读入整个 CSV 文件到内存，修改目标行后重新写回临时文件，属于 **O(n)** 线性操作，且受文件大小影响显著
+            - **File Stream** 处理通过函数式编程简化了代码逻辑，但本质仍是全量读写，性能与传统 **File I/O** 接近
 
-        - **DELETE：File I/O（含 Stream）远慢于 DBMS（约 6521-7155 倍）**
-            - DBMS 的 `DELETE` 通过索引定位目标行并标记删除（或立即清除），操作效率接近 **O(log n)**
-            - File I/O 需要扫描整个文件并将非目标行写入临时文件，是典型的线性重写过程（**O(n)**）
-            - 本次测试中 Stream 实现的 DELETE 性能略差于传统 File I/O，可能因流式收集过程引入额外内存开销
+        - **`DELETE`：File I/O（含 Stream）远慢于 DBMS（约 6521-7155 倍）**
+            - **DBMS** 的 `DELETE` 通过索引定位目标行并标记删除（或立即清除），操作效率接近 **O(log n)**
+            - **File I/O** 需要扫描整个文件并将非目标行写入临时文件，是典型的线性重写过程**O(n)**
+            - 本次测试中 **File Stream** 实现的 DELETE 性能略差于传统 **File I/O**，可能因流式收集过程引入额外内存开销
 
     - #### 有趣现象
-        - **File Stream 对 SELECT 性能提升显著**
-            - 相比传统 BufferedReader 方式，Stream 的 `findFirst()` 操作能在匹配到目标行后立即终止流处理，减少了无效迭代，使性能提升约 70%
+        - **File Stream 对 `SELECT` 性能提升显著**
+            - 相比传统 `BufferedReader` 方式，**File Stream** 的 `findFirst()` 操作能在匹配到目标行后立即终止流处理，减少了无效迭代，使性能提升约 70%
 
-        - **INSERT 操作的“反超”现象**
+        - **File 操作`INSERT` 性能优秀**
             - 在无事务、无索引维护的场景下，文件系统的顺序写性能可超越 DBMS，说明轻量级写入任务（如日志记录）可优先选择文件存储
 
-        - **UPDATE/DELETE 的“量级差距”**
+        - **DBMS `UPDATE`/`DELETE` 的量级领先优势**
             - 两种文件操作方式在更新和删除时耗时均达到秒级，而 DBMS 保持在毫秒级，差距超过 4 个数量级，印证了文件存储不适合频繁修改的场景
 
     - #### 创新见解
         - **存储方案的选择需匹配操作特征**
-            - 若业务以“写多查少”且查询为顺序扫描为主（如日志系统），可选择 File I/O 以利用其高效追加能力
-            - 若存在大量随机查询、更新或删除操作，DBMS 是唯一可行方案，其索引和页式存储机制能突破文件系统的性能瓶颈
+            - 若业务以“写多查少”且查询为顺序扫描为主（如日志系统），可选择 **File I/O**以利用其高效追加能力
+            - 若存在大量随机查询、更新或删除操作，**DBMS** 是唯一可行方案，其索引和页式存储机制能突破文件系统的性能瓶颈
 
         - **代码风格与性能的权衡**
-            - File Stream 以更简洁的函数式语法实现文件操作，在 SELECT 场景下性能接近传统方式，适合追求代码可读性的场景
-            - 但在 UPDATE/DELETE 等全量操作中，Stream 并未带来性能提升，此时传统 I/O 方式更直接高效
+            - **File Stream**以更简洁的函数式语法实现文件操作，在 `SELECT` 场景下性能接近传统方式，适合追求代码可读性的场景
+            - 但在 `UPDATE`/`DELETE` 等全量操作中，**File Stream** 并未带来性能提升，此时传统 **File I/O** 方式更直接高效
 
-        - **事务机制的“隐性成本”与价值**
-            - DBMS 的事务、日志、锁等机制导致 INSERT 性能低于文件，但这些机制保障了数据一致性和并发安全性，是企业级应用不可或缺的特性
-            - 实验中通过 `rollback()` 实现无副作用测试，既触发了 DBMS 内部机制，又避免了数据污染，为基准测试提供了可靠方法
+        - **DBMS事务机制的优势**
+            - **DBMS** 的事务、日志、锁等机制导致 `INSERT`性能低于文件，但这些机制保障了数据一致性和并发安全性，是企业级应用不可或缺的特性
+            - 实验中通过 `rollback()` 实现无副作用测试，既触发了**DBMS** 内部机制，又避免了数据污染，为基准测试提供了可靠方法
  
-
-## 7. 任务五： 高并发查询处理（任务四 bonus）
+---
+## 七、任务五： 高并发查询处理（任务四 bonus）
 - ### 测试环境
   同任务四
 
 
 - ### 高并发性能分析方法
-  - 任务五选择**每秒查询处理量 QPS**代表吞吐量，作为性能指标。每组实验重复三次取`QPS`平均值。人为指定`THREAD_COUNT`（模拟多用户）、`TOTAL_QUERIES`（模拟高并发），生成随机`recipe_id`。`recipe`表格作为我们数据库设计中数据量最大的单个表格，适用于高并发性能探索高并发测试的每次实验记录日志，储存在`logs`文件夹。
+  - 任务五选择 每秒查询处理量 **QPS（Queries Per Second）** 代表吞吐量，作为性能指标。每组实验重复三次取`QPS`平均值。人为指定`THREAD_COUNT`（模拟多用户）、`TOTAL_QUERIES`（模拟高并发），生成随机`recipe_id`。`recipe`表格作为我们数据库设计中数据量最大的单个表格，适用于高并发性能探索高并发测试的每次实验记录日志，储存在`logs`文件夹。
   - 本实验的高并发性能分析中，我们选择使用 `SELECT` 语句而非 `INSERT`、`DELETE` 或 `UPDATE`
   其原因在于：
     - `SELECT` 是只读操作，不会修改数据库状态，能够安全地在多线程环境下并发执行
@@ -555,13 +568,15 @@ https://online.visual-paradigm.com
     | 200,000                   | 45,717.68    | 44,916.45     | 42,889.32 |
     | 500,000                   | 57,857.85    | 57,691.95     | 55,601.53 |
     | 1,000,000                 | 63,808.21    | 63,430.42     | 61,218.89 |
+
+![concurrent_test_comparison](concurrent_test_comparison.png)
   - **结论**：
     - 综合使用`HikariCP`连接池与`PreparedStatement`缓存，该数据库支持高并发（可达**百万级**）查询，效果稳定。
     - 随着查询总量的增加，QPS 稳定上升
     - 测试用电脑只有20 threads。当线程数过高（1000）时，CPU 会频繁切换线程，因上下文切换和调度开销导致吞吐略微下降。实验使用超额线程数是为了体现高并发的稳定性。
+---
 
-
-## 8. 任务六 ：导入方法对比与导入代码优化（任务三进阶）
+## 八、任务六 ：导入方法对比与导入代码优化（任务三bonus）
 - ### 测试环境
     - **硬件配置**
     - *CPU型号*：13th Gen Intel® Core™ i7-13650HX × 20
@@ -577,7 +592,7 @@ https://online.visual-paradigm.com
     - *项目编码*：UTF-8
 - ### 多种导入方法的速度对比
     - **测试代码与运行结果**
-    测试代码为InsertPerformanceTester.java,代码中对比了使用copy方法，preparestatement和普通statement在不同的batchsize下的运行速度，运行结果如下：
+    测试代码为InsertPerformanceTester.java,代码中对比了使用`COPY`方法，preparestatement和普通statement在不同的batchsize下的运行速度，运行结果如下：
 
     ###### 表 3. 不同导入方法耗时对比（单位：ms）
 
@@ -594,18 +609,18 @@ https://online.visual-paradigm.com
     | 普通 Statement          | 2000      | 70363      |
     | 普通 Statement          | 5000      | 58789      |
     | 普通 Statement          | 10000     | 52705      |
-
+![import_method](import_method.png)
 - ### 运行结果分析
   从不同导入方法的耗时数据可以得出以下结论：
 
   1. **COPY 方法性能最优**  
-    COPY 插入耗时仅为 12662 ms，显著优于 PreparedStatement 和普通 Statement 方法，性能提升约 3-5 倍。这是因为 PostgreSQL 的 COPY 命令是数据库原生的批量导入工具，直接读取文件数据并写入底层存储，减少了 JDBC 层的交互开销（如 SQL 解析、网络往返等），尤其适合大规模数据导入场景。
+    COPY 插入耗时仅为 12662 ms，显著优于 PreparedStatement和普通 Statement 方法，性能提升约 3-5 倍。这是因为 PostgreSQL 的 COPY 命令是数据库原生的批量导入工具，直接读取文件数据并写入底层存储，减少了 JDBC 层的交互开销（如 SQL 解析、网络往返等），尤其适合大规模数据导入场景。
 
   2. **PreparedStatement 优于普通 Statement**  
     在相同 batchSize 下，PreparedStatement 的插入耗时比普通 Statement 低 30%-40%。原因在于：
     - PreparedStatement 对 SQL 语句进行预编译，避免了普通 Statement 每次执行时的语法解析和优化开销；
     - 预编译后的语句可复用，减少了数据库端的处理压力。
-vv
+
   3. **batchSize 对性能的影响**  
     - 对于 PreparedStatement 和普通 Statement，随着 batchSize 增大（从 500 到 10000），耗时总体呈下降趋势。较大的 batchSize 减少了与数据库的交互次数，降低了网络通信和事务提交的开销。
     - 但 batchSize 并非越大越好，当达到 10000 时，性能提升逐渐趋于平缓。这是因为过大的批次会增加内存占用和单次传输的负载，可能导致数据库端处理延迟增加。
@@ -616,9 +631,9 @@ vv
     - 普通 Statement 仅适合简单、低频的插入场景，不建议用于批量操作。
 
 - ### 对原数据导入代码的优化
-  原数据导入代码的平均速度为286.324s,导入速度较慢，并没有充分发挥copy方法在大数据导入的场景下的优势，在此前提下，进行了一下优化：
+  原数据导入代码的平均速度为286.324s, 导入速度较慢，并没有充分发挥`COPY`方法在大数据导入的场景下的优势，在此前提下，进行了一下优化：
   - 在数据导入前先关闭外键约束，在数据导入完成后重构外键约束。
-  - 原代码在导入时需要多次读取同一份csv文件，并遍历文件构建对应表，造成了不必要的文件I/O开销与循环开销。通过合并导入方法，将原先的13个方法减少至4个，在单次遍历中构建多个表，并减少commit次数，大幅减少了不必要的开销。
+  - 原代码在导入时需要多次读取同一份csv文件，并遍历文件构建对应表，造成了不必要的FIle I/O开销与循环开销。通过合并导入方法，将原先的13个方法减少至4个，在单次遍历中构建多个表，并减少commit次数，大幅减少了不必要的开销。
   - 在先前优化的基础上，采用并行处理的策略进行文件预处理和导入数据构建，进一步提高了导入效率。
 
 - ### 优化结果
@@ -626,28 +641,29 @@ vv
 
   | 优化阶段                 | 耗时（s） | 相比上一阶段提升 | 相比初始状态提升 |
   |--------------------------|-----------|------------------|------------------|
-  | 初始状态（未优化）       | 286.324   | -                | -                |
+  | baseline       | 286.324   | -                | -                |
   | 关闭外键约束             | 129.588   | 54.7%            | 54.7%            |
   | 合并导入方法             | 63.802    | 51.0%            | 77.7%            |
   | 引入并行处理             | 37.518    | 41.2%            | 86.9%            |
 
-
-  结论如下：
+![import_improvement_compareison](import_improvement_comparison.png)
+    **结论如下:**
    - 关闭外键约束后，导入时间从286.324s降至129.588s，耗时减少约54.7%。外键约束会在每条记录插入时触发关联校验（如检查引用表是否存在对应记录），大数据量场景下会产生大量额外的磁盘I/O和锁竞争，关闭约束可暂时规避这些开销，待数据完整导入后再批量重建约束，显著提升导入效率。
    - 合并导入方法后，时间进一步缩短至63.802s，相比首次优化再降约51%。通过单次遍历原始CSV文件同时构建多个关联表数据，避免了13次重复读取文件的I/O操作（文件I/O是性能瓶颈），同时减少事务提交次数（多次提交会增加日志写入和锁开销），大幅降低了循环和I/O的冗余消耗。 
-   - 引入并行处理后，导入时间最终降至37.518s，相比未优化前总耗时减少约86.9%。通过多线程并行处理文件预处理（如不同CSV文件的解析可分配至不同线程）和数据构建，充分利用了多核CPU资源，将串行任务转化为并行流水作业，进一步压缩了整体耗时。
+   - 引入并行处理后，导入时间最终降至**37.518s**，相比未优化前总耗时减少约86.9%。通过多线程并行处理文件预处理（如不同CSV文件的解析可分配至不同线程）和数据构建，充分利用了多核CPU资源，将串行任务转化为并行流水作业，进一步压缩了整体耗时。
+---
 
-
-## 9. 任务七：不同编程语言数据库数据库操作性能对比
+## 九、任务七：不同编程语言数据库数据库操作性能对比(任务四bonus)
 
 ### 1. 对比概述
-本次测试选取Python、Go、Java、C++四种主流编程语言，在相同硬件和软件环境下（PostgreSQL数据库、50万条测试数据），从初始化、数据插入、查询、更新、删除及并发处理六个维度进行性能对比，旨在分析不同编程语言在数据库交互场景下的效率差异及适用场景。测试统一使用各语言官方推荐的PostgreSQL驱动（如Go的`lib/pq`、Java的`postgresql JDBC`、Python的`psycopg2`、C++的`libpqxx`），确保测试的公平性与代表性。
+本次测试选取Python、Go、Java、C++四种主流编程语言，在相同硬件和软件环境下（PostgreSQL数据库、50万条测试数据），从初始化、数据插入、查询、更新、删除及并发处理六个维度进行性能对比，旨在分析不同编程语言在数据库交互场景下的效率差异及适用场景。测试统一使用各语言官方推荐的PostgreSQL驱动（Go的`lib/pq`、Java的`postgresql JDBC`、Python的`psycopg2`、C++的`libpq`），确保测试的公平性与代表性。
+
 
 
 ### 2. 测试环境
 - **硬件配置**
-  - CPU型号：13th Gen Intel® Core™ i7-13650HX（20核）
-  - 内存大小：24GB DDR5
+  - *CPU型号*：12th Gen Intel(R) Core(TM) i9-12900H @ 2.50 GHz (14 cores / 20 threads)
+  - *内存大小*：64 GB DDR5 @ 4800 MT/s
 - **软件环境**
   - 操作系统：Windows 11
   - 数据库：PostgreSQL
@@ -796,7 +812,7 @@ vv
       - C++: libpq 直接执行 SQL，函数调用链最短，无虚拟机
       - Go: `database/sql` 轻量封装，反射与类型转换成本较低
       - Python: 查询结果需要 Python 对象封装，解释器层处理较慢
-      - Java: JDBC ResultSet 有较重的对象包装和类型转换，开销最大
+      - Java: `JDBC ResultSet` 有较重的对象包装和类型转换，开销最大
 
    - 范围查询：
       - **速度：C++ ≈ Go ≈ Python >> Java**
@@ -808,21 +824,21 @@ vv
 
 4. **更新与删除性能**  
    - **速度：C++ ≈ Go ≈ Python >> Java**
-   - C++：libpq 直接发送 SQL，路径最短
+   - C++：`libpq` 直接发送 SQL，路径最短
    - Go：语句简单，驱动往返时间是主要开销，总体快速
    - Python：更新/删除属于纯 I/O 操作，解释器开销不突出
-   - Java：JDBC 每次执行都涉及较重的对象封装，延迟较高
+   - Java：`JDBC` 每次执行都涉及较重的对象封装，延迟较高
 
 5. **并发性能**  
    - **速度：C++ ≈ Go ≈ Java >> Python**
-   - C++：std::thread 为真正内核态线程，充分利用多核 CPU
-   - Go：得益于goroutine的轻量级调度（用户态线程，上下文切换成本低）
+   - C++：`std::thread` 为真正内核态线程，充分利用多核 CPU
+   - Go：得益于`goroutine`的轻量级调度（用户态线程，上下文切换成本低）
    - Java：依赖OS线程（内核态调度）
    - Python：受 GIL 限制，多线程无法并行执行 Python 字节码，CPU 并发最弱
 
 
 ### 5. 结论与适用场景
-- **Java**：批量插入性能非常强（依赖 HikariCP + PreparedStatement 批处理），并发稳定性好，但初始化慢、查询慢、更新删除也落后于 C++/Go。适合企业级批处理、大规模数据导入、对稳定性要求高的场景。
-- **Go**：在初始化、查询、更新、删除、并发中表现稳定且接近 C++，并发性能尤为突出（goroutine 调度极轻量）。适合构建高并发数据库服务、微服务、数据中间层。
+- **Java**：批量插入性能非常强（依赖 `HikariCP` + `PreparedStatement` 批处理），并发稳定性好，但初始化慢、查询慢、更新删除也落后于 C++/Go。适合企业级批处理、大规模数据导入、对稳定性要求高的场景。
+- **Go**：在初始化、查询、更新、删除、并发中表现稳定且接近 C++，并发性能尤为突出（`goroutine` 调度极轻量）。适合构建高并发数据库服务、微服务、数据中间层。
 - **C++**：整体性能最强，尤其在主键查询、条件查询、范围查询、更新、删除、并发等所有核心数据库操作中几乎都保持领先。适用于对性能要求极高的系统，如数据库代理、实时数据处理、中间件等，但开发复杂度最高。
 - **Python**：初始化和简单操作性能尚可，但受解释器开销和 GIL 限制，批量插入和高并发性能明显落后。适合脚本型任务、数据分析、原型验证，不适合高吞吐量数据库服务。

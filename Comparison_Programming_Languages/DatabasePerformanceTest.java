@@ -262,7 +262,7 @@ public class DatabasePerformanceTest {
     }
 
     // ==========================================================
-    // ⭐ 单个并发任务（确保使用连接池）
+    // 单个并发任务（确保使用连接池）
     // ==========================================================
     private static class ConcurrentTask implements Callable<Map<String, Object>> {
 
@@ -375,7 +375,7 @@ public class DatabasePerformanceTest {
     }
 
     // ==========================================================
-    // ⭐ 并发测试（已使用连接池）
+    // 并发测试（已使用连接池）
     // ==========================================================
     private static void testConcurrentPerformance() {
         System.out.printf("开始并发测试（%d线程，共%d次操作）...\n",
