@@ -23,6 +23,7 @@ hs_err_pid*
 # =========================
 # VSCode / JetBrains caches
 # =========================
+.vscode/
 .settings/
 .project
 .classpath
