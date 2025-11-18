@@ -460,12 +460,12 @@
   Files.deleteIfExists(tempPath);
   ```
 
-  - **DELETE：**（流式 filter → 写回临时文件）
-    - 使用 `Files.lines()` 以 Stream 方式读取原文件  
-    - `filter()` 去除目标行  
-    - 将剩余行通过 `collect()` 收集  
-    - 写入临时文件后删除临时文件  
-    - 不影响原始 CSV 文件内容
+- **DELETE：**（流式 filter → 写回临时文件）
+  - 使用 `Files.lines()` 以 Stream 方式读取原文件  
+  - `filter()` 去除目标行  
+  - 将剩余行通过 `collect()` 收集  
+  - 写入临时文件后删除临时文件  
+  - 不影响原始 CSV 文件内容
 
   ```java
   List<String> remainingLines = Files.lines(csvPath)
