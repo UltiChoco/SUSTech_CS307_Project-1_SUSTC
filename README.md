@@ -1,6 +1,8 @@
+# SUSTC
+
 ## final score
 
-103/110
+![Grade](https://img.shields.io/badge/Grade-103/110-blue)
 
 ## 功能概述
 
